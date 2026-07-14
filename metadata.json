@@ -1,0 +1,6 @@
+{
+  "name": "جدولني — للقدرات",
+  "description": "منصة ذكية لبناء جداول مذاكرة مخصصة لاختبار القدرات (الكمي واللفظي) مع تتبع التقدم والخطأ اليومي، بإعداد آسر (حاصل على 100٪).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
