@@ -11,7 +11,7 @@ export function generateSchedule(
   name: string,
   duration: number,
   durationUnit: 'days' | 'months',
-  skipFridays: boolean,
+  restDays: number[],
   startDateString: string,
   quantFrom: number = 1,
   quantTo: number = 124,
@@ -34,8 +34,9 @@ export function generateSchedule(
     while (tempStudyDays < activeStudyDays) {
       const d = new Date(startDate);
       d.setDate(d.getDate() + tempCalDays);
-      const isFriday = d.getDay() === 5;
-      const isStudyDay = !(isFriday && skipFridays);
+      const dayOfWeek = d.getDay();
+      const isRestDay = restDays.includes(dayOfWeek);
+      const isStudyDay = !isRestDay;
       if (isStudyDay) {
         tempStudyDays++;
       }
@@ -48,8 +49,9 @@ export function generateSchedule(
     for (let i = 0; i < totalCalendarDays; i++) {
       const d = new Date(startDate);
       d.setDate(d.getDate() + i);
-      const isFriday = d.getDay() === 5;
-      const isStudyDay = !(isFriday && skipFridays);
+      const dayOfWeek = d.getDay();
+      const isRestDay = restDays.includes(dayOfWeek);
+      const isStudyDay = !isRestDay;
       if (isStudyDay) {
         tempStudyDays++;
       }
@@ -64,7 +66,9 @@ export function generateSchedule(
     const d = new Date(startDate);
     d.setDate(d.getDate() + i);
     const isFriday = d.getDay() === 5;
-    const isStudyDay = !(isFriday && skipFridays);
+    const dayOfWeek = d.getDay();
+    const isRestDay = restDays.includes(dayOfWeek);
+    const isStudyDay = !isRestDay;
     const dateString = formatDate(d);
 
     if (isStudyDay) {
@@ -160,7 +164,8 @@ export function generateSchedule(
     name: generatedName,
     duration,
     durationUnit,
-    skipFridays,
+    skipFridays: restDays.includes(5),
+    restDays,
     startDate: startDateString,
     createdAt: new Date().toISOString(),
     daysList,

@@ -26,6 +26,7 @@ export interface Schedule {
   duration: number; // e.g. 30
   durationUnit: 'days' | 'months';
   skipFridays: boolean;
+  restDays?: number[];
   startDate: string; // "YYYY-MM-DD"
   createdAt: string;
   daysList: StudyDay[];

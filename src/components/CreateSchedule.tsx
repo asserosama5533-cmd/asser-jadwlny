@@ -15,8 +15,18 @@ interface CreateScheduleProps {
 export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateScheduleProps) {
   const [name, setName] = useState('');
   const [duration, setDuration] = useState<number>(30);
-  const [durationUnit, setDurationUnit] = useState<'days' | 'months'>('days');
-  const [skipFridays, setSkipFridays] = useState(true);
+  const [durationUnit, setDurationUnit] = useState<'days' | 'days'>('days');
+  const [durationUnitVal, setDurationUnitVal] = useState<'days' | 'months'>('days');
+  const [restDays, setRestDays] = useState<number[]>([5]); // Default to Friday (5) as rest day
+
+  const toggleRestDay = (dayIndex: number) => {
+    if (restDays.includes(dayIndex)) {
+      setRestDays(restDays.filter(d => d !== dayIndex));
+    } else {
+      setRestDays([...restDays, dayIndex]);
+    }
+  };
+
   const [startDate, setStartDate] = useState(() => {
     const today = new Date();
     return today.toISOString().split('T')[0];
@@ -111,6 +121,11 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
     e.preventDefault();
     setError('');
 
+    if (restDays.length >= 7) {
+      setError('لا يمكنك اختيار جميع أيام الأسبوع كأيام راحة! يجب أن يكون هناك يوم مذاكرة واحد على الأقل في الأسبوع لإنتاج الخطة.');
+      return;
+    }
+
     let qDuration = duration;
     let vDuration = duration;
 
@@ -135,12 +150,12 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
         return;
       }
 
-      if (duration > 365 && durationUnit === 'days') {
+      if (duration > 365 && durationUnitVal === 'days') {
         setError('الرجاء إدخال مدة أقل من ٣٦٥ يوماً لضمان كفاءة التوزيع');
         return;
       }
 
-      if (duration > 12 && durationUnit === 'months') {
+      if (duration > 12 && durationUnitVal === 'months') {
         setError('الرجاء إدخال مدة أقل من ١٢ شهراً');
         return;
       }
@@ -186,8 +201,8 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
     const newSchedule = generateSchedule(
       name.trim(),
       duration,
-      durationUnit,
-      skipFridays,
+      durationUnitVal,
+      restDays,
       startDate,
       qFrom,
       qTo,
@@ -306,9 +321,9 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                   <button
                     id="unit-days"
                     type="button"
-                    onClick={() => setDurationUnit('days')}
+                    onClick={() => setDurationUnitVal('days')}
                     className={`py-2 rounded-lg text-sm font-bold transition-all ${
-                      durationUnit === 'days'
+                      durationUnitVal === 'days'
                         ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/15'
                         : 'text-gray-600 hover:text-brand-blue'
                     }`}
@@ -318,9 +333,9 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                   <button
                     id="unit-months"
                     type="button"
-                    onClick={() => setDurationUnit('months')}
+                    onClick={() => setDurationUnitVal('months')}
                     className={`py-2 rounded-lg text-sm font-bold transition-all ${
-                      durationUnit === 'months'
+                      durationUnitVal === 'months'
                         ? 'bg-brand-blue text-white shadow-md shadow-brand-blue/15'
                         : 'text-gray-600 hover:text-brand-blue'
                     }`}
@@ -616,26 +631,47 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
             />
           </div>
 
-          {/* Skip Fridays Option */}
-          <div 
-            id="checkbox-skip-fridays"
-            className="flex items-start gap-3 p-4 rounded-xl bg-brand-blue/5 border border-brand-blue/10 cursor-pointer hover:bg-brand-blue/10 transition-all"
-            onClick={() => setSkipFridays(!skipFridays)}
-          >
-            <div className="flex items-center h-5 mt-0.5">
-              <div className={`w-5 h-5 rounded border flex items-center justify-center transition-all ${
-                skipFridays 
-                  ? 'bg-brand-gold border-brand-gold text-brand-blue' 
-                  : 'bg-white border-gray-300'
-              }`}>
-                {skipFridays && <Check className="w-3.5 h-3.5 stroke-[3]" />}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <span className="block text-sm font-bold text-brand-blue">استبعاد أيام الجمعة كراحة أسبوعية</span>
-              <span className="block text-xs text-gray-500 leading-relaxed">
-                عند تحديد هذا الخيار، سيتم اعتبار أيام الجمعة أيام راحة خالية من المذاكرة وسيتم توزيع المنهج كاملاً على الأيام المتبقية فقط لضمان راحتك.
-              </span>
+          {/* Custom Rest Days Option */}
+          <div className="space-y-4 text-right">
+            <label className="block text-sm font-bold text-brand-blue flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-brand-gold" />
+              <span>تحديد أيام الراحة الأسبوعية المخصصة (اختياري)</span>
+            </label>
+            <p className="text-xs text-gray-500 leading-relaxed">
+              اختر الأيام التي ترغب في اعتبارها أيام راحة خالية من المذاكرة (يمكنك اختيار يوم أو أكثر). سيقوم النظام بتوزيع المنهج بذكاء على الأيام المتبقية فقط.
+            </p>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
+              {[
+                { name: 'الأحد', val: 0 },
+                { name: 'الاثنين', val: 1 },
+                { name: 'الثلاثاء', val: 2 },
+                { name: 'الأربعاء', val: 3 },
+                { name: 'الخميس', val: 4 },
+                { name: 'الجمعة', val: 5 },
+                { name: 'السبت', val: 6 },
+              ].map((day) => {
+                const isSelected = restDays.includes(day.val);
+                return (
+                  <button
+                    key={day.val}
+                    type="button"
+                    onClick={() => toggleRestDay(day.val)}
+                    className={`py-3 px-2 rounded-xl text-xs sm:text-sm font-bold transition-all border cursor-pointer flex flex-col items-center justify-center gap-1.5 ${
+                      isSelected
+                        ? 'bg-brand-gold border-brand-gold text-brand-blue shadow-md shadow-brand-gold/10'
+                        : 'bg-white border-gray-200 text-gray-600 hover:border-brand-blue/30 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span>{day.name}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                      isSelected ? 'bg-brand-blue/15 text-brand-blue font-black' : 'bg-gray-150 text-gray-500'
+                    }`}>
+                      {isSelected ? 'راحة ☕' : 'مذاكرة 📖'}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
