@@ -20,7 +20,7 @@ async function startServer() {
 
   // Serve generated Open Graph preview image
   app.get(["/og-image.png", "/og-image.jpg"], (req, res) => {
-    const imgPath = path.join(process.cwd(), "src/assets/images/og_image_1784133414729.jpg");
+    const imgPath = path.join(process.cwd(), "src/assets/images/og_image_night_1784134292521.jpg");
     if (fs.existsSync(imgPath)) {
       res.sendFile(imgPath);
     } else {
