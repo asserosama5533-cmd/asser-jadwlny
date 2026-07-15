@@ -12,16 +12,18 @@ import {
   getProfile, updateProfile, getSchedules, getDailyErrors, 
   deleteDailyError, addDailyError, getCompletionStats,
   isQuantCompleted, setQuantCompleted, isVerbalCompleted, setVerbalCompleted,
-  getTodayDateString, incrementStudyStreak, checkAndUpdateStreakOnLoad
+  getTodayDateString, incrementStudyStreak, checkAndUpdateStreakOnLoad,
+  clearUserDataOnLogout, permanentlyDeleteLocalAccountFromVault
 } from '../utils/storage';
 
 interface ProfilePageProps {
   session: any;
   setPage: (page: Page) => void;
   setActiveScheduleId: (id: string) => void;
+  setSession: (session: any) => void;
 }
 
-export default function ProfilePage({ session, setPage, setActiveScheduleId }: ProfilePageProps) {
+export default function ProfilePage({ session, setPage, setActiveScheduleId, setSession }: ProfilePageProps) {
   // If no session, redirect/login wall (safety check)
   if (!session) {
     return (
@@ -85,6 +87,13 @@ export default function ProfilePage({ session, setPage, setActiveScheduleId }: P
 
   // Re-render trigger
   const [progressTrigger, setProgressTrigger] = useState(0);
+
+  // Account Deletion States
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteCheckbox, setDeleteCheckbox] = useState(false);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   // Bulk Range Selection States for Verbal
   const [verbalRangeStart, setVerbalRangeStart] = useState<Record<number, number>>({});
@@ -380,6 +389,54 @@ export default function ProfilePage({ session, setPage, setActiveScheduleId }: P
     
     setActiveScheduleId(activeSchedule.id);
     setPage('schedule-detail');
+  };
+
+  const handleDeleteAccountSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDeleteError('');
+    
+    if (!deleteCheckbox) {
+      setDeleteError('الرجاء تفعيل خيار الموافقة والشروط أولاً');
+      return;
+    }
+    
+    if (deleteConfirmationText.trim() !== 'حذف الحساب') {
+      setDeleteError('الرجاء كتابة العبارة التأكيدية "حذف الحساب" بشكل صحيح');
+      return;
+    }
+    
+    setIsDeletingAccount(true);
+    try {
+      const res = await fetch('/api/auth/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: session.email })
+      });
+      
+      if (!res.ok) {
+        const data = await res.json();
+        setDeleteError(data.error || 'حدث خطأ أثناء حذف الحساب من الخادم');
+        setIsDeletingAccount(false);
+        return;
+      }
+      
+      // Permanently remove from client's persistent vault
+      permanentlyDeleteLocalAccountFromVault(session.email);
+      
+      // Clear current user's local active session & schedules
+      clearUserDataOnLogout();
+      
+      // Set parent session state to null to log out
+      setSession(null);
+      
+      alert('🎉 تم حذف حسابك وكافة جداول المذاكرة والبيانات المرتبطة به نهائياً وبنجاح! نتمنى لك التوفيق والنجاح دائماً في مسيرتك الدراسية.');
+      
+      // Redirect to landing
+      setPage('landing');
+    } catch (err) {
+      setDeleteError('فشل الاتصال بالخادم لإتمام الحذف، الرجاء المحاولة لاحقاً');
+      setIsDeletingAccount(false);
+    }
   };
 
   return (
@@ -1453,6 +1510,117 @@ export default function ProfilePage({ session, setPage, setActiveScheduleId }: P
           )}
           */}
       </AnimatePresence>
+
+      {/* Account Management & Deletion Zone (Safe and secure) */}
+      <div id="profile-danger-zone-card" className="mt-12 border border-red-100 rounded-3xl bg-red-50/20 p-6 md:p-8 space-y-6">
+        <div className="flex items-center gap-2.5 border-b border-red-100/50 pb-3 flex-row-reverse justify-end">
+          <AlertTriangle className="w-5.5 h-5.5 text-red-500" />
+          <h3 className="text-base sm:text-lg font-black text-red-700">منطقة الحماية وإدارة الحساب</h3>
+        </div>
+
+        {!showDeleteConfirm ? (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 flex-wrap text-right">
+            <div className="space-y-1">
+              <span className="block text-sm font-black text-gray-800">حذف الحساب وإلغاء الاشتراك</span>
+              <span className="block text-xs text-gray-500 leading-normal font-medium">
+                في حال لم تعد ترغب في استخدام المنصة وتريد مسح كامل بياناتك الشخصية وجداولك من خوادمنا نهائياً.
+              </span>
+            </div>
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 bg-white hover:bg-red-50 text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>حذف الحساب نهائياً</span>
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleDeleteAccountSubmit} className="space-y-5">
+            <div className="p-4 rounded-2xl bg-red-50 border border-red-100 text-xs font-bold text-red-800 leading-relaxed space-y-1 text-right">
+              <p className="font-black text-sm">⚠️ تحذير نهائي وصارم:</p>
+              <p>
+                سيتم مسح حسابك بشكل نهائي ولا رجعة فيه! سيقوم هذا الإجراء بإزالة:
+              </p>
+              <ul className="list-disc list-inside mt-1.5 space-y-1 pr-2">
+                <li>كافة جداول المذاكرة النشطة والتاريخية التي قمت بإنشائها.</li>
+                <li>مفكرة أخطاء المذاكرة وسجل الأسئلة الصعبة بالكامل.</li>
+                <li>إحصائيات تقدمك العام والسلسلة اليومية (Streak).</li>
+                <li>الصورة الشخصية والاسم والهدف المسجل لدينا.</li>
+              </ul>
+              <p className="mt-2.5 text-red-600 font-extrabold">
+                * يرجى العلم بأنه لا يمكن لآسر أسامة أو للدعم الفني استعادة أي جزء من بياناتك بعد إتمام هذه الخطوة أبداً!
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {/* Checkbox confirmation */}
+              <label className="flex items-start gap-2.5 cursor-pointer text-right flex-row-reverse justify-end">
+                <input
+                  type="checkbox"
+                  checked={deleteCheckbox}
+                  onChange={(e) => setDeleteCheckbox(e.target.checked)}
+                  className="mt-1 accent-red-600 rounded cursor-pointer w-4 h-4 shrink-0"
+                />
+                <span className="text-xs font-bold text-gray-700 leading-normal select-none">
+                  نعم، أوافق وأتفهم تماماً بأن الحذف فوري ولا رجعة فيه لكافة بيانات مستواي.
+                </span>
+              </label>
+
+              {/* Text confirmation */}
+              <div className="space-y-1.5 text-right">
+                <label className="block text-xs font-bold text-gray-600">
+                  اكتب عبارة <span className="text-red-600 font-black">"حذف الحساب"</span> في الحقل أدناه لتفعيل زر التأكيد:
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmationText}
+                  onChange={(e) => setDeleteConfirmationText(e.target.value)}
+                  placeholder='اكتب العبارة بدقة هنا'
+                  className="w-full max-w-md px-3.5 py-2.5 border border-red-200 rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-red-500 font-bold text-red-700 text-right bg-white"
+                  required
+                />
+              </div>
+            </div>
+
+            {deleteError && (
+              <p className="text-xs font-extrabold text-red-600 flex items-center gap-1 flex-row-reverse justify-end">
+                <span>⚠️</span>
+                <span>{deleteError}</span>
+              </p>
+            )}
+
+            <div className="flex gap-3 justify-start flex-wrap pt-2">
+              <button
+                type="submit"
+                disabled={!deleteCheckbox || deleteConfirmationText.trim() !== 'حذف الحساب' || isDeletingAccount}
+                className="px-5 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-45 disabled:pointer-events-none"
+              >
+                {isDeletingAccount ? (
+                  <span>جاري تنفيذ الحذف النهائي...</span>
+                ) : (
+                  <>
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>تأكيد حذف الحساب والبيانات نهائياً 🗑️</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteCheckbox(false);
+                  setDeleteConfirmationText('');
+                  setDeleteError('');
+                }}
+                className="px-5 py-3 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold transition-all cursor-pointer"
+              >
+                تراجع وإلغاء
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
 
     </div>
   );

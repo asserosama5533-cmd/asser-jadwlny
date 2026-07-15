@@ -124,6 +124,17 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [stats, setStats] = useState<any>(null);
   const [scheduleErrors, setScheduleErrors] = useState<DailyError[]>([]);
+
+  // Schedule Editing States
+  const [isEditingSettings, setIsEditingSettings] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editStartDate, setEditStartDate] = useState('');
+  const [editScheduleType, setEditScheduleType] = useState<'both' | 'quant' | 'verbal'>('both');
+  
+  // Day-specific Editing States
+  const [editingDayNumber, setEditingDayNumber] = useState<number | null>(null);
+  const [editQuantBanks, setEditQuantBanks] = useState('');
+  const [editVerbalSections, setEditVerbalSections] = useState('');
   
   // Quick error modal states
   const [showErrorModal, setShowErrorModal] = useState(false);
@@ -159,6 +170,7 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
   const [redistributeRemainingDays, setRedistributeRemainingDays] = useState<number>(0);
   const [customAlertMsg, setCustomAlertMsg] = useState<string | null>(null);
   const [customSuccessMsg, setCustomSuccessMsg] = useState<string | null>(null);
+  const [deleteConfirmDayNum, setDeleteConfirmDayNum] = useState<number | null>(null);
 
   const activeModalDay = schedule?.daysList.find(d => d.dayNumber === errDayNum);
 
@@ -168,6 +180,9 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
     if (found) {
       setSchedule(found);
       setDetailReminderTime(found.studyReminderTime || '');
+      setEditName(found.name);
+      setEditStartDate(found.startDate);
+      setEditScheduleType(found.scheduleType || 'both');
       setStats(getCompletionStats(found));
       setScheduleErrors(getDailyErrors(scheduleId));
 
@@ -315,6 +330,439 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
   const handleDeleteError = (id: string) => {
     deleteDailyError(id);
     setUpdateTrigger(prev => prev + 1);
+  };
+
+  const handleSaveSettings = () => {
+    if (!schedule) return;
+    if (!editName.trim()) {
+      alert('الرجاء إدخال اسم صحيح للجدول.');
+      return;
+    }
+
+    // If the start date changed, recalculate the date strings for all days sequentially
+    let updatedDaysList = [...schedule.daysList];
+    if (editStartDate !== schedule.startDate) {
+      try {
+        const newStart = new Date(editStartDate);
+        if (!isNaN(newStart.getTime())) {
+          updatedDaysList = schedule.daysList.map((day, idx) => {
+            const currentDayDate = new Date(newStart);
+            currentDayDate.setDate(newStart.getDate() + idx);
+            const y = currentDayDate.getFullYear();
+            const m = String(currentDayDate.getMonth() + 1).padStart(2, '0');
+            const d = String(currentDayDate.getDate()).padStart(2, '0');
+            return {
+              ...day,
+              dateString: `${y}-${m}-${d}`,
+              isFriday: currentDayDate.getDay() === 5
+            };
+          });
+        }
+      } catch (e) {
+        console.error("Failed to parse or calculate new dates:", e);
+      }
+    }
+
+    // Handle changing the schedule type if it is different from original
+    if (editScheduleType !== schedule.scheduleType) {
+      const qFrom = schedule.quantRange?.from || 1;
+      const qTo = schedule.quantRange?.to || 124;
+      const vFrom = schedule.verbalRange?.from || 1;
+      const vTo = schedule.verbalRange?.to || 257;
+
+      const studyDaysIndices = updatedDaysList
+        .map((day, idx) => ({ day, idx }))
+        .filter(item => item.day.isStudyDay);
+
+      // If no study days are found, use all days
+      const targets = studyDaysIndices.length > 0 
+        ? studyDaysIndices 
+        : updatedDaysList.map((day, idx) => ({ day, idx }));
+
+      const totalStudyDaysCount = targets.length;
+
+      // Initialize all study days with empty tasks for a clean slate
+      updatedDaysList = updatedDaysList.map(day => ({
+        ...day,
+        quantBanks: [],
+        verbalSections: []
+      }));
+
+      // Now distribute tasks based on the selected type
+      targets.forEach((target, currentStudyDayIndex) => {
+        const dayIdx = target.idx;
+        const originalDay = updatedDaysList[dayIdx];
+        let dayQuantBanks: number[] = [];
+        let dayVerbalSections: number[] = [];
+
+        if (editScheduleType !== 'verbal') {
+          // Add Quant
+          if (schedule.useSeparateDurations && editScheduleType === 'both') {
+            const quantDuration = schedule.quantDuration || 30;
+            if (currentStudyDayIndex < quantDuration) {
+              const totalQuant = Math.max(1, qTo - qFrom + 1);
+              const qStartOffset = Math.floor(currentStudyDayIndex * totalQuant / quantDuration);
+              const qEndOffset = Math.floor((currentStudyDayIndex + 1) * totalQuant / quantDuration);
+              for (let q = qStartOffset; q < qEndOffset; q++) {
+                const bankNum = qFrom + q;
+                if (bankNum <= qTo) dayQuantBanks.push(bankNum);
+              }
+            }
+          } else {
+            const totalQuant = Math.max(1, qTo - qFrom + 1);
+            const qStartOffset = Math.floor(currentStudyDayIndex * totalQuant / totalStudyDaysCount);
+            const qEndOffset = Math.floor((currentStudyDayIndex + 1) * totalQuant / totalStudyDaysCount);
+            for (let q = qStartOffset; q < qEndOffset; q++) {
+              const bankNum = qFrom + q;
+              if (bankNum <= qTo) dayQuantBanks.push(bankNum);
+            }
+          }
+        }
+
+        if (editScheduleType !== 'quant') {
+          // Add Verbal
+          if (schedule.useSeparateDurations && editScheduleType === 'both') {
+            const verbalDuration = schedule.verbalDuration || 5;
+            const verbalRestDays = schedule.verbalRestDays || 0;
+            const verbalCycleLength = verbalDuration + verbalRestDays;
+            const cyclePos = currentStudyDayIndex % verbalCycleLength;
+            if (cyclePos < verbalDuration) {
+              const totalVerbal = Math.max(1, vTo - vFrom + 1);
+              const vStartOffset = Math.floor(cyclePos * totalVerbal / verbalDuration);
+              const vEndOffset = Math.floor((cyclePos + 1) * totalVerbal / verbalDuration);
+              for (let v = vStartOffset; v < vEndOffset; v++) {
+                const secNum = vFrom + v;
+                if (secNum <= vTo) dayVerbalSections.push(secNum);
+              }
+            }
+          } else {
+            const totalVerbal = Math.max(1, vTo - vFrom + 1);
+            const vStartOffset = Math.floor(currentStudyDayIndex * totalVerbal / totalStudyDaysCount);
+            const vEndOffset = Math.floor((currentStudyDayIndex + 1) * totalVerbal / totalStudyDaysCount);
+            for (let v = vStartOffset; v < vEndOffset; v++) {
+              const secNum = vFrom + v;
+              if (secNum <= vTo) dayVerbalSections.push(secNum);
+            }
+          }
+        }
+
+        updatedDaysList[dayIdx] = {
+          ...originalDay,
+          quantBanks: dayQuantBanks,
+          verbalSections: dayVerbalSections,
+          isStudyDay: dayQuantBanks.length > 0 || dayVerbalSections.length > 0
+        };
+      });
+
+      // Reindex studyDayIndex for sequential consistency
+      let studyIndexCounter = 1;
+      updatedDaysList = updatedDaysList.map(day => {
+        const isStudy = day.isStudyDay;
+        const sIndex = isStudy ? studyIndexCounter++ : undefined;
+        return {
+          ...day,
+          studyDayIndex: sIndex
+        };
+      });
+    }
+
+    const updated: Schedule = {
+      ...schedule,
+      name: editName.trim(),
+      startDate: editStartDate,
+      scheduleType: editScheduleType,
+      daysList: updatedDaysList,
+      totalStudyDays: updatedDaysList.filter(d => d.isStudyDay).length
+    };
+
+    saveSchedule(updated);
+    setSchedule(updated);
+    setStats(getCompletionStats(updated));
+    setIsEditingSettings(false);
+    setUpdateTrigger(prev => prev + 1);
+
+    if (editScheduleType !== schedule.scheduleType) {
+      setCustomSuccessMsg("تم تعديل تركيز الجدول بنجاح! تم إعادة توزيع المهام وتحديث خطتك الدراسية تلقائياً دون ضياع تقدمك. ✨");
+    } else {
+      setCustomSuccessMsg("تم حفظ معلومات وتعديلات الجدول بنجاح! 💾");
+    }
+  };
+
+  const handleStartEditDay = (day: StudyDay) => {
+    setEditingDayNumber(day.dayNumber);
+    setEditQuantBanks(day.quantBanks.join(', '));
+    setEditVerbalSections(day.verbalSections.join(', '));
+  };
+
+  const handleSaveDayEdits = (dayNumber: number) => {
+    if (!schedule) return;
+
+    // Parse quant banks
+    const qBanks = editQuantBanks
+      .split(',')
+      .map(item => parseInt(item.trim()))
+      .filter(num => !isNaN(num) && num > 0);
+
+    // Parse verbal sections
+    const vSections = editVerbalSections
+      .split(',')
+      .map(item => parseInt(item.trim()))
+      .filter(num => !isNaN(num) && num > 0);
+
+    const updatedDaysList = schedule.daysList.map(day => {
+      if (day.dayNumber === dayNumber) {
+        return {
+          ...day,
+          quantBanks: qBanks,
+          verbalSections: vSections,
+          isStudyDay: qBanks.length > 0 || vSections.length > 0
+        };
+      }
+      return day;
+    });
+
+    // Reindex studyDayIndex for sequential consistency
+    let studyIndexCounter = 1;
+    const reindexedDays = updatedDaysList.map(day => {
+      const isStudy = day.isStudyDay;
+      const sIndex = isStudy ? studyIndexCounter++ : undefined;
+      return {
+        ...day,
+        studyDayIndex: sIndex
+      };
+    });
+
+    const updated: Schedule = {
+      ...schedule,
+      daysList: reindexedDays,
+      totalCalendarDays: reindexedDays.length,
+      totalStudyDays: reindexedDays.filter(d => d.isStudyDay).length
+    };
+
+    saveSchedule(updated);
+    setSchedule(updated);
+    setEditingDayNumber(null);
+    setUpdateTrigger(prev => prev + 1);
+  };
+
+  const handleAddNewDay = () => {
+    if (!schedule) return;
+
+    const lastDay = schedule.daysList[schedule.daysList.length - 1];
+    const newDayNumber = (lastDay?.dayNumber || 0) + 1;
+    
+    let newDateString = "";
+    try {
+      const startDateObj = new Date(schedule.startDate);
+      startDateObj.setDate(startDateObj.getDate() + newDayNumber - 1);
+      const y = startDateObj.getFullYear();
+      const m = String(startDateObj.getMonth() + 1).padStart(2, '0');
+      const d = String(startDateObj.getDate()).padStart(2, '0');
+      newDateString = `${y}-${m}-${d}`;
+    } catch (e) {
+      const today = new Date();
+      newDateString = today.toISOString().split('T')[0];
+    }
+
+    const newDay: StudyDay = {
+      dayNumber: newDayNumber,
+      dateString: newDateString,
+      isFriday: new Date(newDateString).getDay() === 5,
+      isStudyDay: true,
+      studyDayIndex: (schedule.daysList.filter(d => d.isStudyDay).length || 0) + 1,
+      quantBanks: [],
+      verbalSections: []
+    };
+
+    const updated: Schedule = {
+      ...schedule,
+      daysList: [...schedule.daysList, newDay],
+      totalCalendarDays: schedule.totalCalendarDays + 1,
+      totalStudyDays: schedule.totalStudyDays + 1
+    };
+
+    saveSchedule(updated);
+    setSchedule(updated);
+    setUpdateTrigger(prev => prev + 1);
+  };
+
+  const handleDeleteDay = (dayNumber: number) => {
+    if (!schedule) return;
+    if (schedule.daysList.length <= 1) {
+      setCustomAlertMsg("لا يمكنك حذف اليوم الأخير المتبقي في الجدول!");
+      return;
+    }
+
+    setDeleteConfirmDayNum(dayNumber);
+  };
+
+  const executeDeleteDay = () => {
+    if (!schedule || deleteConfirmDayNum === null) return;
+    const targetDayNumber = deleteConfirmDayNum;
+
+    const dayToDelete = schedule.daysList.find(day => day.dayNumber === targetDayNumber);
+    const quantBanksToDistribute = dayToDelete ? [...dayToDelete.quantBanks] : [];
+    const verbalSectionsToDistribute = dayToDelete ? [...dayToDelete.verbalSections] : [];
+
+    // Filter out the deleted day
+    const filteredDays = schedule.daysList
+      .filter(day => day.dayNumber !== targetDayNumber)
+      .map(day => ({
+        ...day,
+        quantBanks: [...day.quantBanks],
+        verbalSections: [...day.verbalSections]
+      }));
+    
+    // Distribute tasks to the remaining active study days
+    const remainingStudyDays = filteredDays.filter(d => d.isStudyDay);
+    const targets = remainingStudyDays.length > 0 ? remainingStudyDays : filteredDays;
+
+    if (targets.length > 0) {
+      if (quantBanksToDistribute.length > 0) {
+        let qIdx = 0;
+        quantBanksToDistribute.forEach(bank => {
+          const targetDay = targets[qIdx % targets.length];
+          if (!targetDay.quantBanks.includes(bank)) {
+            targetDay.quantBanks = [...targetDay.quantBanks, bank].sort((a, b) => a - b);
+          }
+          qIdx++;
+        });
+      }
+
+      if (verbalSectionsToDistribute.length > 0) {
+        let vIdx = 0;
+        verbalSectionsToDistribute.forEach(sec => {
+          const targetDay = targets[vIdx % targets.length];
+          if (!targetDay.verbalSections.includes(sec)) {
+            targetDay.verbalSections = [...targetDay.verbalSections, sec].sort((a, b) => a - b);
+          }
+          vIdx++;
+        });
+      }
+    }
+
+    let studyIndexCounter = 1;
+    const reindexedDays = filteredDays.map((day, idx) => {
+      const dayNum = idx + 1;
+      
+      let newDateString = day.dateString;
+      try {
+        const startDateObj = new Date(schedule.startDate);
+        startDateObj.setDate(startDateObj.getDate() + idx);
+        const y = startDateObj.getFullYear();
+        const m = String(startDateObj.getMonth() + 1).padStart(2, '0');
+        const d = String(startDateObj.getDate()).padStart(2, '0');
+        newDateString = `${y}-${m}-${d}`;
+      } catch (e) {
+        // use old
+      }
+
+      const isStudy = day.isStudyDay;
+      const sIndex = isStudy ? studyIndexCounter++ : undefined;
+
+      return {
+        ...day,
+        dayNumber: dayNum,
+        dateString: newDateString,
+        studyDayIndex: sIndex
+      };
+    });
+
+    const updated: Schedule = {
+      ...schedule,
+      daysList: reindexedDays,
+      totalCalendarDays: reindexedDays.length,
+      totalStudyDays: reindexedDays.filter(d => d.isStudyDay).length
+    };
+
+    saveSchedule(updated);
+    setSchedule(updated);
+    setDeleteConfirmDayNum(null);
+    setUpdateTrigger(prev => prev + 1);
+    setCustomSuccessMsg("تم حذف اليوم بنجاح، وتوزيع مهامه وتعديل ترتيب بقية الأيام تلقائياً!");
+  };
+
+  const handleToggleRestDay = (dayNumber: number, toRest: boolean) => {
+    if (!schedule) return;
+
+    const targetDay = schedule.daysList.find(d => d.dayNumber === dayNumber);
+    const quantBanksToDistribute = targetDay && toRest ? [...targetDay.quantBanks] : [];
+    const verbalSectionsToDistribute = targetDay && toRest ? [...targetDay.verbalSections] : [];
+
+    const updatedDaysList = schedule.daysList.map(day => {
+      if (day.dayNumber === dayNumber) {
+        return {
+          ...day,
+          isStudyDay: !toRest,
+          // If converting to rest day, clear its tasks
+          quantBanks: toRest ? [] : day.quantBanks,
+          verbalSections: toRest ? [] : day.verbalSections
+        };
+      }
+      return {
+        ...day,
+        quantBanks: [...day.quantBanks],
+        verbalSections: [...day.verbalSections]
+      };
+    });
+
+    // If converting to rest day, distribute its tasks to the other study days
+    if (toRest) {
+      const otherStudyDays = updatedDaysList.filter(day => day.dayNumber !== dayNumber && day.isStudyDay);
+      const targets = otherStudyDays.length > 0 ? otherStudyDays : updatedDaysList.filter(day => day.dayNumber !== dayNumber);
+
+      if (targets.length > 0) {
+        if (quantBanksToDistribute.length > 0) {
+          let qIdx = 0;
+          quantBanksToDistribute.forEach(bank => {
+            const destDay = targets[qIdx % targets.length];
+            if (!destDay.quantBanks.includes(bank)) {
+              destDay.quantBanks = [...destDay.quantBanks, bank].sort((a, b) => a - b);
+            }
+            qIdx++;
+          });
+        }
+
+        if (verbalSectionsToDistribute.length > 0) {
+          let vIdx = 0;
+          verbalSectionsToDistribute.forEach(sec => {
+            const destDay = targets[vIdx % targets.length];
+            if (!destDay.verbalSections.includes(sec)) {
+              destDay.verbalSections = [...destDay.verbalSections, sec].sort((a, b) => a - b);
+            }
+            vIdx++;
+          });
+        }
+      }
+    }
+
+    // Reindex studyDayIndex for sequential consistency
+    let studyIndexCounter = 1;
+    const reindexedDays = updatedDaysList.map(day => {
+      const isStudy = day.isStudyDay;
+      const sIndex = isStudy ? studyIndexCounter++ : undefined;
+      return {
+        ...day,
+        studyDayIndex: sIndex
+      };
+    });
+
+    const updated: Schedule = {
+      ...schedule,
+      daysList: reindexedDays,
+      totalCalendarDays: reindexedDays.length,
+      totalStudyDays: reindexedDays.filter(d => d.isStudyDay).length
+    };
+
+    saveSchedule(updated);
+    setSchedule(updated);
+    setUpdateTrigger(prev => prev + 1);
+
+    if (toRest) {
+      setCustomSuccessMsg("تم تحويل اليوم إلى إجازة وتوزيع مهامه (البنوك والأقسام) على بقية الأيام بنجاح! 🌴");
+    } else {
+      setCustomSuccessMsg("تم تحويل اليوم إلى يوم دراسي بنجاح! يمكنك الآن نقل بنوك أو أقسام إليه.");
+    }
   };
 
   const handleAddErrorSubmit = (e: React.FormEvent) => {
@@ -503,19 +951,101 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
   return (
     <div id="schedule-detail-page" className="max-w-6xl mx-auto px-4 py-8">
       
-      {/* Back button */}
-      <div className="flex justify-between items-center mb-8">
+      {/* Back button and title */}
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 mb-8 text-right">
         <button
           id="btn-back-to-list"
           onClick={() => setPage('schedules')}
-          className="flex items-center gap-2 text-brand-blue/70 hover:text-brand-blue text-sm font-bold transition-all cursor-pointer"
+          className="flex items-center gap-2 text-brand-blue/70 hover:text-brand-blue text-sm font-bold transition-all cursor-pointer self-start"
         >
           <ArrowRight className="w-4 h-4" />
           <span>العودة لجداولي</span>
         </button>
         
-        <h1 className="text-xl sm:text-2xl font-black text-brand-blue">{schedule.name}</h1>
+        <div className="flex flex-col sm:flex-row items-center gap-3 justify-end">
+          <button
+            onClick={() => {
+              if (isEditingSettings) {
+                handleSaveSettings();
+              } else {
+                setIsEditingSettings(true);
+              }
+            }}
+            className="px-3 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-brand-blue font-bold text-xs transition-all flex items-center gap-1 cursor-pointer order-last sm:order-first"
+          >
+            <span>{isEditingSettings ? '✅ حفظ التغييرات' : '⚙️ تعديل معلومات الجدول'}</span>
+          </button>
+          
+          {isEditingSettings ? (
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="text-lg font-black text-brand-blue border-b-2 border-brand-gold focus:outline-none px-2 py-1 max-w-xs text-right"
+              placeholder="اسم الجدول"
+            />
+          ) : (
+            <h1 className="text-xl sm:text-2xl font-black text-brand-blue">{schedule.name}</h1>
+          )}
+        </div>
       </div>
+
+      {/* Settings Edit Area */}
+      {isEditingSettings && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className="bg-brand-gold/5 border-2 border-brand-gold/20 rounded-2xl p-4 mb-8 text-right space-y-4"
+        >
+          <h3 className="text-sm font-black text-brand-blue">تعديل معلومات وتاريخ بدء الجدول</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-gray-600">اسم الجدول الجديد:</label>
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-brand-blue focus:outline-none focus:ring-1 focus:ring-brand-gold"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-gray-600">تاريخ البدء:</label>
+              <input
+                type="date"
+                value={editStartDate}
+                onChange={(e) => setEditStartDate(e.target.value)}
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-brand-blue focus:outline-none focus:ring-1 focus:ring-brand-gold"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-bold text-gray-600">تركيز الجدول (نوع المذاكرة):</label>
+              <select
+                value={editScheduleType}
+                onChange={(e) => setEditScheduleType(e.target.value as 'both' | 'quant' | 'verbal')}
+                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm text-brand-blue focus:outline-none focus:ring-1 focus:ring-brand-gold font-bold text-right"
+              >
+                <option value="both">📖 كمي ولفظي معاً</option>
+                <option value="quant">🔢 كمي فقط (سيحذف اللفظي)</option>
+                <option value="verbal">✍️ لفظي فقط (سيحذف الكمي)</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2.5 pt-2">
+            <button
+              onClick={() => setIsEditingSettings(false)}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+            >
+              إلغاء
+            </button>
+            <button
+              onClick={handleSaveSettings}
+              className="px-4 py-2 bg-brand-gold hover:bg-brand-gold-light text-brand-blue font-black text-xs rounded-xl transition-all cursor-pointer"
+            >
+              حفظ التعديلات
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       {/* Progress Card */}
       <div className="bg-white border border-brand-blue/5 rounded-2xl shadow-xl shadow-brand-blue/5 p-6 mb-8 text-right">
@@ -872,8 +1402,95 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
                         exit={{ height: 0, opacity: 0 }}
                         className="border-t border-gray-100 bg-gray-50/50 p-6"
                       >
-                        {day.isStudyDay ? (
-                          <div className="space-y-6">
+                        {editingDayNumber === day.dayNumber ? (
+                          <div className="space-y-4 bg-brand-gold/5 border border-brand-gold/20 rounded-2xl p-5 text-right">
+                            <h4 className="text-sm font-black text-brand-blue flex items-center gap-1.5 justify-start">
+                              <span>✏️ تعديل مهام اليوم الدراسي رقم {day.dayNumber}</span>
+                            </h4>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div className="space-y-1 text-right">
+                                <label className="block text-xs font-bold text-gray-700">أرقام بنوك الكمي (مفصولة بفاصلة):</label>
+                                <input
+                                  type="text"
+                                  value={editQuantBanks}
+                                  onChange={(e) => setEditQuantBanks(e.target.value)}
+                                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-mono text-brand-blue text-left focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                                  placeholder="مثال: 1, 2"
+                                />
+                                <span className="block text-[10px] text-gray-400">اتركها فارغة إذا لم تكن هناك بنوك كمي اليوم.</span>
+                              </div>
+                              
+                              <div className="space-y-1 text-right">
+                                <label className="block text-xs font-bold text-gray-700">أرقام أقسام اللفظي (مفصولة بفاصلة):</label>
+                                <input
+                                  type="text"
+                                  value={editVerbalSections}
+                                  onChange={(e) => setEditVerbalSections(e.target.value)}
+                                  className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-xs font-mono text-brand-blue text-left focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                                  placeholder="مثال: 5, 6, 7"
+                                />
+                                <span className="block text-[10px] text-gray-400">اتركها فارغة إذا لم تكن هناك أقسام لفظية اليوم.</span>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-3 border-t border-gray-200/50">
+                              <button
+                                onClick={() => setEditingDayNumber(null)}
+                                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                              >
+                                إلغاء
+                              </button>
+                              <button
+                                onClick={() => handleSaveDayEdits(day.dayNumber)}
+                                className="px-4 py-2 bg-brand-gold hover:bg-brand-gold-light text-brand-blue font-black text-xs rounded-xl transition-all cursor-pointer shadow-sm"
+                              >
+                                حفظ التعديلات
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Inline Controls Row */}
+                            <div className="flex justify-between items-center mb-5 border-b border-gray-200/40 pb-3">
+                              <span className="text-xs font-bold text-gray-400">التحكم باليوم الدراسي:</span>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleStartEditDay(day)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-gray-100 hover:bg-gray-200 text-brand-blue text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                                >
+                                  <span>✏️ تعديل المهام</span>
+                                </button>
+                                
+                                {day.isStudyDay ? (
+                                  <button
+                                    onClick={() => handleToggleRestDay(day.dayNumber, true)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                                    title="تحويل هذا اليوم إلى يوم إجازة/راحة"
+                                  >
+                                    <span>😴 تحويل لإجازة</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={() => handleToggleRestDay(day.dayNumber, false)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                                    title="تحويل هذا اليوم إلى يوم مذاكرة دراسي"
+                                  >
+                                    <span>📖 تحويل ليوم دراسي</span>
+                                  </button>
+                                )}
+
+                                <button
+                                  onClick={() => handleDeleteDay(day.dayNumber)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                                >
+                                  <span>🗑️ حذف اليوم</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {day.isStudyDay ? (
+                              <div className="space-y-6">
                             
                             {/* "فاتني اليوم" Redistribution Banner */}
                             {!isDayFullyCompleted && schedule.daysList.some(d => d.dayNumber > day.dayNumber && d.isStudyDay) && (
@@ -1166,11 +1783,24 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
                             </span>
                           </div>
                         )}
+                        </>
+                        )}
                       </motion.div>
                     )}
                   </div>
                 );
               })}
+              
+              {/* Button to add a new day to the schedule */}
+              <div className="flex justify-center pt-4 animate-fade-in">
+                <button
+                  id="btn-add-new-day"
+                  onClick={handleAddNewDay}
+                  className="px-6 py-3 bg-brand-blue/5 hover:bg-brand-blue/10 border-2 border-dashed border-brand-blue/20 hover:border-brand-blue/40 text-brand-blue font-black text-sm rounded-2xl transition-all cursor-pointer flex items-center gap-2 shadow-sm hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  <span>➕ إضافة يوم جديد للجدول</span>
+                </button>
+              </div>
             </div>
 
             {/* Accumulated Errors Log for this Schedule */}
@@ -1545,6 +2175,65 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
                     id="btn-cancel-redistribution"
                     type="button"
                     onClick={() => setRedistributeDayNum(null)}
+                    className="px-5 py-3 rounded-xl font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all text-sm cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* CUSTOM DAY DELETION CONFIRMATION DIALOG */}
+      <AnimatePresence>
+        {deleteConfirmDayNum !== null && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+            {/* Backdrop Overlay */}
+            <div 
+              className="fixed inset-0 bg-brand-blue/60 backdrop-blur-sm transition-opacity" 
+              onClick={() => setDeleteConfirmDayNum(null)}
+            />
+
+            {/* Modal Card */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="relative z-10 bg-white rounded-2xl text-right overflow-hidden shadow-2xl transform transition-all max-w-md w-full border border-red-100 p-6 space-y-4"
+            >
+              <div className="text-center space-y-4">
+                {/* Trash/Warning Icon */}
+                <div className="mx-auto flex items-center justify-center h-14 w-14 rounded-full bg-rose-50 text-rose-600 border border-rose-100 mb-2">
+                  <Trash2 className="w-8 h-8 text-rose-600" />
+                </div>
+
+                <h3 className="text-lg font-black text-brand-blue">تأكيد حذف اليوم 🗑️</h3>
+                
+                <p className="text-sm text-gray-600 leading-relaxed font-bold text-center">
+                  هل أنت متأكد يا بطل من رغبتك في حذف <span className="text-rose-600 font-extrabold">اليوم رقم {deleteConfirmDayNum}</span> من الجدول نهائياً؟
+                </p>
+                
+                <div className="bg-rose-50/50 rounded-xl p-3 text-right border border-rose-100 text-xs font-semibold text-rose-800 leading-relaxed">
+                  ⚠️ تنبيه: سيتم حذف هذا اليوم نهائياً، وستتم إعادة ترتيب وتواريخ بقية أيام الجدول تلقائياً وبشكل متسلسل لضمان استمرارية خطتك الدراسية دون فجوات.
+                </div>
+
+                {/* Buttons */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    id="btn-confirm-day-delete"
+                    type="button"
+                    onClick={executeDeleteDay}
+                    className="flex-grow py-3 rounded-xl font-black bg-rose-600 text-white hover:bg-rose-700 transition-all text-sm cursor-pointer shadow-md shadow-rose-600/10"
+                  >
+                    نعم، احذف اليوم
+                  </button>
+                  <button
+                    id="btn-cancel-day-delete"
+                    type="button"
+                    onClick={() => setDeleteConfirmDayNum(null)}
                     className="px-5 py-3 rounded-xl font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-all text-sm cursor-pointer"
                   >
                     إلغاء

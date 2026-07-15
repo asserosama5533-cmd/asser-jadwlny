@@ -1,8 +1,10 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import https from "https";
 import { createServer as createViteServer } from "vite";
 import webpush from "web-push";
+import nodemailer from "nodemailer";
 
 async function startServer() {
   const app = express();
@@ -15,6 +17,108 @@ async function startServer() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
+
+  // Helper to send real emails via Brevo SMTP API or fall back safely to console simulation
+  const sendBrevoOTP = (toEmail: string, code: string, userName: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      const brevoApiKey = process.env.BREVO_API_KEY || "";
+      const brevoSenderEmail = process.env.BREVO_SENDER_EMAIL || "support@jadwalni.com";
+      const brevoSenderName = process.env.BREVO_SENDER_NAME || "منصة جدولني للقدرات";
+
+      if (!brevoApiKey) {
+        console.log(`\n======================================================`);
+        console.log(`[SECURITY WARNING] BREVO_API_KEY is not configured in .env!`);
+        console.log(`[SIMULATION MODE] Verification code for ${toEmail} is: ${code}`);
+        console.log(`======================================================\n`);
+        return resolve(false); // Not configured - will log and fail over to simulation
+      }
+
+      const postData = JSON.stringify({
+        sender: {
+          name: brevoSenderName,
+          email: brevoSenderEmail
+        },
+        to: [
+          {
+            email: toEmail,
+            name: userName
+          }
+        ],
+        subject: "كود التحقق الخاص بك لإعادة تعيين كلمة المرور - جدولني",
+        htmlContent: `
+          <div dir="rtl" style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 12px; background-color: #ffffff; text-align: right;">
+            <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #bf9b30; padding-bottom: 15px;">
+              <h2 style="color: #0c1a30; margin: 0; font-size: 24px;">منصة جدولني للقدرات</h2>
+              <p style="color: #bf9b30; font-weight: bold; margin: 5px 0 0 0;">كود التحقق الأمني لإعادة تعيين كلمة المرور</p>
+            </div>
+            
+            <p style="color: #333333; font-size: 15px;">أهلاً بطلنا المتفوق <strong>${userName}</strong>،</p>
+            
+            <p style="line-height: 1.6; color: #4a4a4a; font-size: 14px;">
+              لقد تلقينا طلباً لإعادة تعيين كلمة المرور لحسابك المسجل على منصة <strong>جدولني للقدرات</strong>. 
+              يرجى استخدام كود التحقق السري التالي لإتمام عملية التعيين بنجاح:
+            </p>
+            
+            <div style="background-color: #f7f9fc; border: 1px dashed #bf9b30; border-radius: 8px; padding: 15px; text-align: center; margin: 25px 0;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #0c1a30; font-family: monospace;">${code}</span>
+            </div>
+            
+            <p style="font-size: 12px; color: #888888; line-height: 1.6;">
+              ⚠️ <strong>ملاحظات هامة:</strong><br>
+              * كود التحقق هذا صالح للاستخدام لمدة <strong>10 دقائق فقط</strong> من تاريخ إرساله.<br>
+              * كود التحقق هذا صالح لعدد <strong>5 محاولات كحد أقصى</strong> قبل أن يتم إلغاؤه تلقائياً لدواعي الأمان.<br>
+              * لا تقم بمشاركة هذا الكود مع أي شخص لحماية حسابك من السرقة والعبث بجداولك الدراسية.<br>
+              * إذا لم تكن أنت من قام بهذا الطلب، فيرجى تجاهل هذا الإيميل تماماً وسيبقى حسابك محمي بالكامل.
+            </p>
+            
+            <hr style="border: 0; border-top: 1px solid #eeeeee; margin: 20px 0;">
+            
+            <div style="text-align: center; font-size: 11px; color: #aaaaaa;">
+              © 2026 منصة جدولني للقدرات - نسير معك نحو الـ 100٪ بكل أمان وسرية.
+            </div>
+          </div>
+        `
+      });
+
+      const options = {
+        hostname: "api.brevo.com",
+        port: 443,
+        path: "/v3/smtp/email",
+        method: "POST",
+        headers: {
+          "accept": "application/json",
+          "api-key": brevoApiKey,
+          "content-type": "application/json",
+          "Content-Length": Buffer.byteLength(postData)
+        }
+      };
+
+      const req = https.request(options, (res) => {
+        let responseBody = "";
+        res.on("data", (chunk) => {
+          responseBody += chunk;
+        });
+
+        res.on("end", () => {
+          if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
+            console.log(`[Brevo SMTP] Verification email sent successfully to ${toEmail}`);
+            resolve(true);
+          } else {
+            console.error(`[Brevo SMTP Error] Failed with status ${res.statusCode}: ${responseBody}`);
+            resolve(false);
+          }
+        });
+      });
+
+      req.on("error", (error) => {
+        console.error("[Brevo SMTP Exception] Failed to send verification email:", error);
+        resolve(false);
+      });
+
+      req.write(postData);
+      req.end();
+    });
+  };
 
   // Initialize VAPID Keys for Web Push Notifications
   const VAPID_FILE = path.join(DATA_DIR, "vapid.json");
@@ -162,6 +266,9 @@ async function startServer() {
     }
   });
 
+  // In-memory store for password reset verification codes
+  const resetCodes = new Map<string, { code: string; expires: number; attempts: number }>();
+
   // API Route to login a user
   app.post("/api/auth/login", (req, res) => {
     const { email, password } = req.body;
@@ -191,6 +298,331 @@ async function startServer() {
     }
 
     return res.json({ user: { id: found.id, email: found.email, name: found.name } });
+  });
+
+  // API Route for Forgot Password
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "الرجاء إدخال البريد الإلكتروني" });
+    }
+
+    const usersFilePath = path.join(DATA_DIR, "users.json");
+    let users = [];
+    if (fs.existsSync(usersFilePath)) {
+      try {
+        users = JSON.parse(fs.readFileSync(usersFilePath, "utf-8"));
+      } catch (e) {
+        users = [];
+      }
+    }
+
+    const emailLower = email.toLowerCase().trim();
+    const found = users.find((u: any) => u.email.toLowerCase().trim() === emailLower);
+
+    if (!found) {
+      return res.status(400).json({ error: "لا يوجد حساب مرتبط بهذا البريد الإلكتروني." });
+    }
+
+    // Generate a secure 6-digit random code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    
+    // Save/Overwrite the verification code in database (in-memory store)
+    // Overwriting the previous record cancels any old codes and resets attempts to 0
+    resetCodes.set(emailLower, {
+      code,
+      expires: Date.now() + 10 * 60 * 1000, // Valid for exactly 10 minutes
+      attempts: 0 // Start with 0 failed attempts
+    });
+
+    // Log the reset code on the server console securely for testing/debugging
+    console.log(`[SECURITY INFO] Reset password code generated for ${emailLower}: ${code}`);
+
+    // Try sending actual email via Brevo SMTP
+    const sent = await sendBrevoOTP(emailLower, code, found.name || "طالبنا المتفوق");
+
+    return res.json({ 
+      success: true, 
+      message: sent 
+        ? "تم إرسال كود التحقق السري إلى بريدك الإلكتروني بنجاح! يرجى مراجعة صندوق الوارد (أو صندوق الرسائل غير المرغوب فيها Spam)."
+        : "تم تقديم طلب إعادة تعيين كلمة المرور بنجاح. يرجى التواصل مع الدعم لتلقي الرمز أو إعداد مفتاح Brevo الخاص بك.",
+      emailSent: sent
+    });
+  });
+
+  // API Route to Reset Password using the verification code
+  app.post("/api/auth/reset-password", (req, res) => {
+    const { email, code, newPassword } = req.body;
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: "الرجاء إدخال جميع الحقول المطلوبة" });
+    }
+
+    const emailLower = email.toLowerCase().trim();
+    const record = resetCodes.get(emailLower);
+
+    if (!record) {
+      return res.status(400).json({ error: "لم يتم طلب رمز تحقق لهذا البريد الإلكتروني أو انتهت صلاحيته. يرجى طلب رمز جديد." });
+    }
+
+    // 1. Check expiration (10 minutes limit)
+    if (Date.now() > record.expires) {
+      resetCodes.delete(emailLower); // Delete expired code
+      return res.status(400).json({ error: "انتهت صلاحية رمز التحقق (10 دقائق). يرجى طلب رمز جديد." });
+    }
+
+    // 2. Check failed attempts (Max 5 attempts allowed)
+    if (record.attempts >= 5) {
+      resetCodes.delete(emailLower); // Invalidate completely
+      return res.status(400).json({ error: "لقد تجاوزت الحد الأقصى للمحاولات المسموح بها (5 محاولات). يرجى طلب كود جديد." });
+    }
+
+    // 3. Verify correctness of the code
+    if (record.code !== code.trim()) {
+      record.attempts += 1;
+      
+      if (record.attempts >= 5) {
+        resetCodes.delete(emailLower); // Force delete on 5th failure
+        return res.status(400).json({ 
+          error: "لقد تجاوزت الحد الأقصى للمحاولات المسموح بها (5 محاولات). يرجى طلب كود جديد." 
+        });
+      } else {
+        resetCodes.set(emailLower, record); // Save incremented attempts
+        return res.status(400).json({ 
+          error: `كود التحقق غير صحيح. متبقي لديك ${5 - record.attempts} محاولات.` 
+        });
+      }
+    }
+
+    // 4. Update the user password in the users database
+    const usersFilePath = path.join(DATA_DIR, "users.json");
+    let users = [];
+    if (fs.existsSync(usersFilePath)) {
+      try {
+        users = JSON.parse(fs.readFileSync(usersFilePath, "utf-8"));
+      } catch (e) {
+        users = [];
+      }
+    }
+
+    const userIndex = users.findIndex((u: any) => u.email.toLowerCase().trim() === emailLower);
+    if (userIndex === -1) {
+      return res.status(400).json({ error: "المستخدم غير موجود" });
+    }
+
+    users[userIndex].password = newPassword;
+    try {
+      fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2), "utf-8");
+      
+      // Delete the OTP immediately on success so it cannot be reused
+      resetCodes.delete(emailLower);
+      
+      return res.json({ success: true, message: "تم تغيير كلمة المرور بنجاح" });
+    } catch (err) {
+      return res.status(500).json({ error: "فشل في حفظ كلمة المرور الجديدة" });
+    }
+  });
+
+  // API Route to permanently delete a user's account and all associated data
+  app.post("/api/auth/delete-account", (req, res) => {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: "البريد الإلكتروني مطلوب لحذف الحساب" });
+    }
+
+    const emailLower = email.toLowerCase().trim();
+    const usersFilePath = path.join(DATA_DIR, "users.json");
+    let users = [];
+    if (fs.existsSync(usersFilePath)) {
+      try {
+        users = JSON.parse(fs.readFileSync(usersFilePath, "utf-8"));
+      } catch (e) {
+        users = [];
+      }
+    }
+
+    const filteredUsers = users.filter((u: any) => u.email.toLowerCase().trim() !== emailLower);
+    
+    try {
+      fs.writeFileSync(usersFilePath, JSON.stringify(filteredUsers, null, 2), "utf-8");
+      
+      // Delete user data file if it exists
+      const userDataFilePath = getFilePathForEmail(emailLower);
+      if (fs.existsSync(userDataFilePath)) {
+        fs.unlinkSync(userDataFilePath);
+      }
+      
+      return res.json({ success: true, message: "تم حذف الحساب وجميع البيانات المرتبطة به نهائياً بنجاح" });
+    } catch (err) {
+      return res.status(500).json({ error: "فشل في إتمام عملية حذف الحساب" });
+    }
+  });
+
+  // API Route to fetch notifications
+  app.get("/api/notifications", (req, res) => {
+    const notificationsFilePath = path.join(DATA_DIR, "notifications.json");
+    let notifications = [];
+
+    if (fs.existsSync(notificationsFilePath)) {
+      try {
+        notifications = JSON.parse(fs.readFileSync(notificationsFilePath, "utf-8"));
+      } catch (e) {
+        notifications = [];
+      }
+    }
+
+    // If empty or file doesn't exist, write defaults
+    if (notifications.length === 0) {
+      notifications = [
+        {
+          id: "notif-system-4",
+          title: "حذف الحساب نهائياً 🗑️",
+          text: "تم إضافة ميزة حذف الحساب نهائياً من البروفايل وتأكيده بعبارة 'حذف الحساب' لضمان السيطرة والأمان الكامل لبياناتك الشخصية.",
+          time: "الآن",
+          isNew: true,
+          createdAt: Date.now()
+        },
+        {
+          id: "notif-system-1",
+          title: "نظام السلسلة اليومية (Streak) 🔥",
+          text: "تم تفعيل نظام الـ Streak الجديد في البروفايل! عندما تنجز كافة مهام يومك الدراسي، يمكنك تسجيل إنجازك لزيادة السلسلة المتتالية والعودة لجدولك تلقائياً.",
+          time: "أمس، الساعة 8:30 م",
+          isNew: true,
+          createdAt: Date.now() - 24 * 60 * 60 * 1000
+        },
+        {
+          id: "notif-system-2",
+          title: "تحسينات مظهر الوضع الداكن 🌙",
+          text: "تم حل مشاكل تباين النصوص وتنسيق الألوان في الوضع الداكن، خصوصاً في صفحة الدعم الفني وحسابات التواصل لتصبح مريحة ومقروءة بشكل ممتاز.",
+          time: "أمس، الساعة 4:15 م",
+          isNew: true,
+          createdAt: Date.now() - 28 * 60 * 60 * 1000
+        },
+        {
+          id: "notif-system-3",
+          title: "تحديث توليد صور الجدول 📸",
+          text: "تمت ترقية منشئ صور الجداول ليكون مخصصاً وجاهزاً للمشاركة! تظهر الصور الآن مع إعدادات حساب آسر (Asser / o1v__asser) المميزة.",
+          time: "أمس، الساعة 11:10 ص",
+          isNew: true,
+          createdAt: Date.now() - 32 * 60 * 60 * 1000
+        },
+        {
+          id: "notif-legacy-1",
+          title: "تحديث النظام 🚀",
+          text: "تم تحسين محرك توليد الصور بالكامل! الآن يتم ترتيب الأيام ومحاذاة المهام بدقة فائقة لتناسب طباعتك ومشاركتها.",
+          time: "منذ يومين",
+          isNew: false,
+          createdAt: Date.now() - 2 * 24 * 60 * 60 * 1000
+        },
+        {
+          id: "notif-legacy-2",
+          title: "سر الـ 100٪ 🤍",
+          text: "تم تفعيل 'سجل الأخطاء المتراكمة المباشر' في تفاصيل الجداول لمراجعة جميع أسئلتك الصعبة فورا وتثبيتها.",
+          time: "منذ 3 أيام",
+          isNew: false,
+          createdAt: Date.now() - 3 * 24 * 60 * 60 * 1000
+        },
+        {
+          id: "notif-legacy-3",
+          title: "نصيحة ذهبية من آسر 🎓",
+          text: "أهلاً بك، لا تشيل هم تكرار الأخطاء بالبداية، فكل خطأ تصححه وتتعلم فكرته هو خطوة حقيقية تضمن بها الـ 100٪ بإذن الله!",
+          time: "منذ أسبوع",
+          isNew: false,
+          createdAt: Date.now() - 7 * 24 * 60 * 60 * 1000
+        }
+      ];
+
+      try {
+        fs.writeFileSync(notificationsFilePath, JSON.stringify(notifications, null, 2), "utf-8");
+      } catch (err) {
+        // ignore
+      }
+    }
+
+    return res.json(notifications);
+  });
+
+  // API Route to add a new notification/update (restricted to admin email)
+  app.post("/api/notifications", (req, res) => {
+    const { email, title, text } = req.body;
+    if (!email || !title || !text) {
+      return res.status(400).json({ error: "البريد الإلكتروني، العنوان، والنص مطلوبون" });
+    }
+
+    const emailLower = email.toLowerCase().trim();
+    if (emailLower !== "asserosama5533@gmail.com") {
+      return res.status(403).json({ error: "عذراً، هذا الإجراء متاح فقط لمطور المنصة آسر أسامة" });
+    }
+
+    const notificationsFilePath = path.join(DATA_DIR, "notifications.json");
+    let notifications = [];
+
+    if (fs.existsSync(notificationsFilePath)) {
+      try {
+        notifications = JSON.parse(fs.readFileSync(notificationsFilePath, "utf-8"));
+      } catch (e) {
+        notifications = [];
+      }
+    }
+
+    const newNotif = {
+      id: "notif-" + Date.now(),
+      title: title.trim(),
+      text: text.trim(),
+      time: "الآن",
+      isNew: true,
+      createdAt: Date.now()
+    };
+
+    // Add new notification at the top of the array
+    notifications.unshift(newNotif);
+
+    try {
+      fs.writeFileSync(notificationsFilePath, JSON.stringify(notifications, null, 2), "utf-8");
+      return res.json({ success: true, notification: newNotif });
+    } catch (err) {
+      return res.status(500).json({ error: "فشل في حفظ الإشعار الجديد" });
+    }
+  });
+
+  // API Route to auto-restore a user's account if it was wiped on the server
+  app.post("/api/auth/auto-restore", (req, res) => {
+    const { email, password, name } = req.body;
+    if (!email || !password || !name) {
+      return res.status(400).json({ error: "الرجاء إدخال البريد الإلكتروني وكلمة المرور والاسم" });
+    }
+
+    const usersFilePath = path.join(DATA_DIR, "users.json");
+    let users = [];
+    if (fs.existsSync(usersFilePath)) {
+      try {
+        users = JSON.parse(fs.readFileSync(usersFilePath, "utf-8"));
+      } catch (e) {
+        users = [];
+      }
+    }
+
+    const emailLower = email.toLowerCase().trim();
+    const found = users.find((u: any) => u.email.toLowerCase().trim() === emailLower);
+
+    if (!found) {
+      // Auto-recreate the user entry in users.json
+      const newUser = {
+        id: "usr_" + Math.random().toString(36).substr(2, 9),
+        email: emailLower,
+        password: password,
+        name: name.trim(),
+        createdAt: new Date().toISOString()
+      };
+      users.push(newUser);
+      try {
+        fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2), "utf-8");
+        return res.json({ restored: true, user: { id: newUser.id, email: newUser.email, name: newUser.name } });
+      } catch (err) {
+        return res.status(500).json({ error: "فشل في حفظ بيانات الاستعادة" });
+      }
+    }
+
+    return res.json({ restored: false, user: { id: found.id, email: found.email, name: found.name } });
   });
 
   // API Route to load user-specific data via registered email

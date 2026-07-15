@@ -15,8 +15,95 @@ interface HeaderProps {
 export default function Header({ currentPage, setPage, session, setSession }: HeaderProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(3); // Start with 3 unread notifications for new updates
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [profile, setProfile] = useState<Profile | null>(null);
+
+  // Admin notification states
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showAdminForm, setShowAdminForm] = useState(false);
+  const [adminTitle, setAdminTitle] = useState('');
+  const [adminText, setAdminText] = useState('');
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [adminMsg, setAdminMsg] = useState('');
+
+  // Fetch notifications
+  const fetchNotifications = async () => {
+    try {
+      const res = await fetch('/api/notifications');
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data);
+        
+        // Calculate unread count
+        const lastRead = Number(localStorage.getItem('last_read_notif_time') || 0);
+        const unread = data.filter((n: any) => {
+          if (!lastRead) {
+            return n.isNew;
+          }
+          return (n.createdAt || 0) > lastRead;
+        });
+        setUnreadCount(unread.length);
+      }
+    } catch (e) {
+      console.error("Error fetching notifications:", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  useEffect(() => {
+    setIsAdmin(session?.email?.toLowerCase().trim() === 'asserosama5533@gmail.com');
+  }, [session]);
+
+  const handleOpenNotifications = (isOpenNow: boolean) => {
+    setShowNotifications(isOpenNow);
+    if (isOpenNow) {
+      // Mark as read
+      setUnreadCount(0);
+      const maxCreatedAt = notifications.reduce((max, n) => Math.max(max, n.createdAt || 0), 0);
+      localStorage.setItem('last_read_notif_time', String(maxCreatedAt || Date.now()));
+    }
+  };
+
+  const handlePublishNotification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adminTitle || !adminText || !session?.email) return;
+
+    setIsPublishing(true);
+    setAdminMsg('');
+
+    try {
+      const res = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: session.email,
+          title: adminTitle,
+          text: adminText
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // Update local state
+        setNotifications(prev => [data.notification, ...prev]);
+        setAdminTitle('');
+        setAdminText('');
+        setAdminMsg('🎉 تم نشر الإشعار والتحديث لجميع زوار المنصة بنجاح!');
+        setTimeout(() => setAdminMsg(''), 4000);
+      } else {
+        const err = await res.json();
+        setAdminMsg(`❌ فشل النشر: ${err.error || 'خطأ غير معروف'}`);
+      }
+    } catch (e) {
+      setAdminMsg('❌ حدث خطأ أثناء الاتصال بالخادم');
+    } finally {
+      setIsPublishing(false);
+    }
+  };
 
   useEffect(() => {
     if (session) {
@@ -43,51 +130,6 @@ export default function Header({ currentPage, setPage, session, setSession }: He
       localStorage.setItem('theme', 'light');
     }
   }, [isDarkMode]);
-
-  const notifications = [
-    {
-      id: 4,
-      title: "نظام السلسلة اليومية (Streak) 🔥",
-      text: "تم تفعيل نظام الـ Streak الجديد في البروفايل! عندما تنجز كافة مهام يومك الدراسي، يمكنك تسجيل إنجازك لزيادة السلسلة المتتالية والعودة لجدولك تلقائياً.",
-      time: "أمس، الساعة 8:30 م",
-      isNew: true
-    },
-    {
-      id: 5,
-      title: "تحسينات مظهر الوضع الداكن 🌙",
-      text: "تم حل مشاكل تباين النصوص وتنسيق الألوان في الوضع الداكن، خصوصاً في صفحة الدعم الفني وحسابات التواصل لتصبح مريحة ومقروءة بشكل ممتاز.",
-      time: "أمس، الساعة 4:15 م",
-      isNew: true
-    },
-    {
-      id: 6,
-      title: "تحديث توليد صور الجدول 📸",
-      text: "تمت ترقية منشئ صور الجداول ليكون مخصصاً وجاهزاً للمشاركة! تظهر الصور الآن مع إعدادات حساب آسر (Asser / o1v__asser) المميزة.",
-      time: "أمس، الساعة 11:10 ص",
-      isNew: true
-    },
-    {
-      id: 1,
-      title: "تحديث النظام 🚀",
-      text: "تم تحسين محرك توليد الصور بالكامل! الآن يتم ترتيب الأيام ومحاذاة المهام بدقة فائقة لتناسب طباعتك ومشاركتها.",
-      time: "منذ يومين",
-      isNew: false
-    },
-    {
-      id: 2,
-      title: "سر الـ 100٪ 🤍",
-      text: "تم تفعيل 'سجل الأخطاء المتراكمة المباشر' في تفاصيل الجداول لمراجعة جميع أسئلتك الصعبة فورا وتثبيتها.",
-      time: "منذ 3 أيام",
-      isNew: false
-    },
-    {
-      id: 3,
-      title: "نصيحة ذهبية من آسر 🎓",
-      text: "أهلاً بك، لا تشيل هم تكرار الأخطاء بالبداية، فكل خطأ تصححه وتتعلم فكرته هو خطوة حقيقية تضمن بها الـ 100٪ بإذن الله!",
-      time: "منذ أسبوع",
-      isNew: false
-    }
-  ];
 
   const handleLogout = () => {
     clearUserDataOnLogout();
@@ -178,10 +220,7 @@ export default function Header({ currentPage, setPage, session, setSession }: He
             <div className="relative">
               <button
                 id="header-bell-button-desktop"
-                onClick={() => {
-                  setShowNotifications(!showNotifications);
-                  setUnreadCount(0); // clear count on click
-                }}
+                onClick={() => handleOpenNotifications(!showNotifications)}
                 className="relative p-2 rounded-xl text-gray-300 hover:text-brand-gold hover:bg-white/5 transition-all duration-300 cursor-pointer"
                 title="الإشعارات والتحديثات"
               >
@@ -196,7 +235,7 @@ export default function Header({ currentPage, setPage, session, setSession }: He
                 {showNotifications && (
                   <>
                     {/* Click-outside backdrop overlay */}
-                    <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                    <div className="fixed inset-0 z-40" onClick={() => handleOpenNotifications(false)} />
                     
                     <motion.div
                       id="notifications-dropdown-desktop"
@@ -211,26 +250,81 @@ export default function Header({ currentPage, setPage, session, setSession }: He
                         <span className="text-[10px] font-black bg-brand-gold/20 text-brand-blue px-2.5 py-1 rounded-full">الموقع الرسمي</span>
                       </div>
 
-                      <div className="max-h-[350px] overflow-y-auto divide-y divide-gray-50">
-                        {notifications.map((notif) => (
-                          <div 
-                            key={notif.id} 
-                            className={`p-4 transition-all hover:bg-slate-50/80 text-right flex gap-3 ${
-                              notif.isNew ? 'bg-brand-gold/5' : ''
-                            }`}
+                      {/* Admin Panel Inside Dropdown */}
+                      {isAdmin && (
+                        <div className="p-4 bg-amber-50/50 border-b border-amber-100 text-right space-y-3">
+                          <button
+                            type="button"
+                            onClick={() => setShowAdminForm(!showAdminForm)}
+                            className="w-full py-2 px-3 rounded-lg bg-brand-gold text-brand-blue font-black text-xs hover:bg-brand-gold-light transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                           >
-                            <div className="flex-grow space-y-1">
-                              <div className="flex items-center justify-between flex-row-reverse">
-                                <h4 className="text-xs font-black text-brand-blue">{notif.title}</h4>
-                                <span className="text-[10px] text-gray-400 font-mono">{notif.time}</span>
+                            <span>📢 {showAdminForm ? 'إغلاق لوحة النشر' : 'نشر تحديث/إشعار جديد للموقع'}</span>
+                          </button>
+
+                          {showAdminForm && (
+                            <form onSubmit={handlePublishNotification} className="space-y-3 pt-2">
+                              <div className="space-y-1">
+                                <label className="block text-[10px] font-bold text-gray-500">عنوان التحديث (مثال: تفعيل الوضع الداكن 🌙):</label>
+                                <input
+                                  type="text"
+                                  value={adminTitle}
+                                  onChange={(e) => setAdminTitle(e.target.value)}
+                                  placeholder="العنوان باختصار"
+                                  className="w-full p-2 border border-gray-200 rounded-lg text-xs font-bold text-brand-blue bg-white focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                                  required
+                                />
                               </div>
-                              <p className="text-xs text-slate-600 leading-relaxed font-medium">{notif.text}</p>
+                              <div className="space-y-1">
+                                <label className="block text-[10px] font-bold text-gray-500">تفاصيل التحديث بالتفصيل:</label>
+                                <textarea
+                                  value={adminText}
+                                  onChange={(e) => setAdminText(e.target.value)}
+                                  placeholder="اكتب ماذا أضفت أو عدلت بالتفصيل لكي يظهر للمستخدمين..."
+                                  className="w-full p-2 border border-gray-200 rounded-lg text-xs font-medium text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-brand-gold h-20"
+                                  required
+                                />
+                              </div>
+                              {adminMsg && (
+                                <p className="text-[10px] font-bold text-emerald-600 leading-relaxed">{adminMsg}</p>
+                              )}
+                              <button
+                                type="submit"
+                                disabled={isPublishing}
+                                className="w-full py-2 rounded-lg bg-brand-blue text-white hover:bg-brand-blue/90 font-bold text-xs transition-all disabled:opacity-50 cursor-pointer"
+                              >
+                                {isPublishing ? 'جاري النشر...' : 'نشر التحديث فوراً 🚀'}
+                              </button>
+                            </form>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="max-h-[350px] overflow-y-auto divide-y divide-gray-50">
+                        {notifications.length === 0 ? (
+                          <p className="p-4 text-xs text-center text-gray-400 font-bold">لا توجد إشعارات حالياً</p>
+                        ) : (
+                          notifications.map((notif) => (
+                            <div 
+                              key={notif.id} 
+                              className={`p-4 transition-all hover:bg-slate-50/80 text-right flex gap-3 ${
+                                notif.isNew ? 'bg-brand-gold/5' : ''
+                              }`}
+                            >
+                              <div className="flex-grow space-y-1">
+                                <div className="flex items-center justify-between flex-row-reverse">
+                                  <h4 className="text-xs font-black text-brand-blue">{notif.title}</h4>
+                                  <span className="text-[10px] text-gray-400 font-mono">
+                                    {notif.time || (notif.createdAt ? new Date(notif.createdAt).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' }) : '')}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-600 leading-relaxed font-medium">{notif.text}</p>
+                              </div>
+                              {notif.isNew && (
+                                <span className="w-1.5 h-1.5 bg-brand-gold rounded-full self-start mt-1.5 shrink-0" />
+                              )}
                             </div>
-                            {notif.isNew && (
-                              <span className="w-1.5 h-1.5 bg-brand-gold rounded-full self-start mt-1.5 shrink-0" />
-                            )}
-                          </div>
-                        ))}
+                          ))
+                        )}
                       </div>
 
                       <div className="px-4 pt-3 border-t border-gray-100 text-center space-y-1">
@@ -298,10 +392,7 @@ export default function Header({ currentPage, setPage, session, setSession }: He
             <div className="relative">
               <button
                 id="header-bell-button-mobile"
-                onClick={() => {
-                  setShowNotifications(!showNotifications);
-                  setUnreadCount(0); // clear count on click
-                }}
+                onClick={() => handleOpenNotifications(!showNotifications)}
                 className="relative p-2 rounded-xl text-gray-300 hover:text-brand-gold hover:bg-white/5 transition-all duration-300 cursor-pointer"
                 title="الإشعارات والتحديثات"
               >
@@ -315,7 +406,7 @@ export default function Header({ currentPage, setPage, session, setSession }: He
               <AnimatePresence>
                 {showNotifications && (
                   <>
-                    <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px]" onClick={() => setShowNotifications(false)} />
+                    <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-[1px]" onClick={() => handleOpenNotifications(false)} />
                     
                     <motion.div
                       id="notifications-dropdown-mobile"
@@ -330,26 +421,81 @@ export default function Header({ currentPage, setPage, session, setSession }: He
                         <span className="text-[10px] font-black bg-brand-gold/20 text-brand-blue px-2.5 py-1 rounded-full">الموقع الرسمي</span>
                       </div>
 
-                      <div className="max-h-[300px] overflow-y-auto divide-y divide-gray-50">
-                        {notifications.map((notif) => (
-                          <div 
-                            key={notif.id} 
-                            className={`p-4 transition-all hover:bg-slate-50/80 text-right flex gap-3 ${
-                              notif.isNew ? 'bg-brand-gold/5' : ''
-                            }`}
+                      {/* Admin Panel Inside Dropdown (Mobile) */}
+                      {isAdmin && (
+                        <div className="p-4 bg-amber-50/50 border-b border-amber-100 text-right space-y-3">
+                          <button
+                            type="button"
+                            onClick={() => setShowAdminForm(!showAdminForm)}
+                            className="w-full py-2 px-3 rounded-lg bg-brand-gold text-brand-blue font-black text-xs hover:bg-brand-gold-light transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                           >
-                            <div className="flex-grow space-y-1">
-                              <div className="flex items-center justify-between flex-row-reverse">
-                                <h4 className="text-xs font-black text-brand-blue">{notif.title}</h4>
-                                <span className="text-[10px] text-gray-400 font-mono">{notif.time}</span>
+                            <span>📢 {showAdminForm ? 'إغلاق لوحة النشر' : 'نشر تحديث/إشعار جديد للموقع'}</span>
+                          </button>
+
+                          {showAdminForm && (
+                            <form onSubmit={handlePublishNotification} className="space-y-3 pt-2">
+                              <div className="space-y-1">
+                                <label className="block text-[10px] font-bold text-gray-500">عنوان التحديث:</label>
+                                <input
+                                  type="text"
+                                  value={adminTitle}
+                                  onChange={(e) => setAdminTitle(e.target.value)}
+                                  placeholder="العنوان باختصار"
+                                  className="w-full p-2 border border-gray-200 rounded-lg text-xs font-bold text-brand-blue bg-white focus:outline-none focus:ring-1 focus:ring-brand-gold"
+                                  required
+                                />
                               </div>
-                              <p className="text-xs text-slate-600 leading-relaxed font-medium">{notif.text}</p>
+                              <div className="space-y-1">
+                                <label className="block text-[10px] font-bold text-gray-500">تفاصيل التحديث بالتفصيل:</label>
+                                <textarea
+                                  value={adminText}
+                                  onChange={(e) => setAdminText(e.target.value)}
+                                  placeholder="اكتب ماذا أضفت أو عدلت بالتفصيل للمستخدمين..."
+                                  className="w-full p-2 border border-gray-200 rounded-lg text-xs font-medium text-slate-700 bg-white focus:outline-none focus:ring-1 focus:ring-brand-gold h-20"
+                                  required
+                                />
+                              </div>
+                              {adminMsg && (
+                                <p className="text-[10px] font-bold text-emerald-600 leading-relaxed">{adminMsg}</p>
+                              )}
+                              <button
+                                type="submit"
+                                disabled={isPublishing}
+                                className="w-full py-2 rounded-lg bg-brand-blue text-white hover:bg-brand-blue/90 font-bold text-xs transition-all disabled:opacity-50 cursor-pointer"
+                              >
+                                {isPublishing ? 'جاري النشر...' : 'نشر التحديث فوراً 🚀'}
+                              </button>
+                            </form>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="max-h-[300px] overflow-y-auto divide-y divide-gray-50">
+                        {notifications.length === 0 ? (
+                          <p className="p-4 text-xs text-center text-gray-400 font-bold">لا توجد إشعارات حالياً</p>
+                        ) : (
+                          notifications.map((notif) => (
+                            <div 
+                              key={notif.id} 
+                              className={`p-4 transition-all hover:bg-slate-50/80 text-right flex gap-3 ${
+                                notif.isNew ? 'bg-brand-gold/5' : ''
+                              }`}
+                            >
+                              <div className="flex-grow space-y-1">
+                                <div className="flex items-center justify-between flex-row-reverse">
+                                  <h4 className="text-xs font-black text-brand-blue">{notif.title}</h4>
+                                  <span className="text-[10px] text-gray-400 font-mono">
+                                    {notif.time || (notif.createdAt ? new Date(notif.createdAt).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short' }) : '')}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-slate-600 leading-relaxed font-medium">{notif.text}</p>
+                              </div>
+                              {notif.isNew && (
+                                <span className="w-1.5 h-1.5 bg-brand-gold rounded-full self-start mt-1.5 shrink-0" />
+                              )}
                             </div>
-                            {notif.isNew && (
-                              <span className="w-1.5 h-1.5 bg-brand-gold rounded-full self-start mt-1.5 shrink-0" />
-                            )}
-                          </div>
-                        ))}
+                          ))
+                        )}
                       </div>
 
                       <div className="px-4 pt-3 border-t border-gray-100 text-center space-y-1">

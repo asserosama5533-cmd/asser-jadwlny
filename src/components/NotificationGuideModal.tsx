@@ -136,9 +136,17 @@ export default function NotificationGuideModal({ isOpen, onClose }: Notification
 
                   <div className="relative">
                     <span className="absolute right-[-23px] top-0.5 w-4.5 h-4.5 rounded-full bg-green-500 text-white font-mono text-[10px] font-black flex items-center justify-center">3</span>
-                    <span className="block text-xs font-bold text-gray-800 dark:text-slate-200">ابقِ لسان التبويب مفتوحاً في الخلفية</span>
+                    <span className="block text-xs font-bold text-gray-800 dark:text-slate-200">تصلك التنبيهات حتى والموقع مغلق بالكامل! 🚀</span>
                     <span className="block text-[11px] text-gray-500 dark:text-slate-400 leading-normal mt-0.5">
-                      ستصلك التنبيهات بدقة عالية طالما أن المتصفح يعمل في الخلفية. (يمكنك أيضاً تثبيت الموقع كتطبيق عبر النقر على النقاط الثلاثة في متصفح Chrome واختيار "تثبيت التطبيق").
+                      بفضل تقنية <b>Web Push</b> المتطورة، ستصلك تنبيهات المذاكرة اليومية بدقة في وقتها المحدد حتى لو قمت بإغلاق موقع "جدولني" وإغلاق المتصفح تماماً!
+                    </span>
+                  </div>
+
+                  <div className="relative">
+                    <span className="absolute right-[-23px] top-0.5 w-4.5 h-4.5 rounded-full bg-green-500 text-white font-mono text-[10px] font-black flex items-center justify-center">4</span>
+                    <span className="block text-xs font-bold text-gray-800 dark:text-slate-200">تثبيت التطبيق وإلغاء قيود البطارية (لضمان دقة 100%) 🔋</span>
+                    <span className="block text-[11px] text-gray-500 dark:text-slate-400 leading-normal mt-0.5">
+                      نوصيك بشدة بالنقر على النقاط الثلاثة في متصفح Chrome واختيار <b>"تثبيت التطبيق" (Install App)</b>. كما يفضل الدخول إلى إعدادات هاتفك للأندرويد ثم التطبيقات ثم Chrome أو جدولني ثم البطارية ثم تعيينها على وضع <b>"غير مقيدة" (Unrestricted)</b> لضمان عدم وضع الإشعارات في وضع السكون من قِبل نظام أندرويد لتوفير الطاقة.
                     </span>
                   </div>
                 </div>

@@ -23,7 +23,8 @@ export default function App() {
     const activeSession = getSession();
     setSession(activeSession);
     if (activeSession) {
-      import('./utils/storage').then(({ syncFromServer }) => {
+      import('./utils/storage').then(async ({ autoRestoreSessionOnServer, syncFromServer }) => {
+        await autoRestoreSessionOnServer();
         syncFromServer(activeSession.email, activeSession.id);
       });
     }
@@ -204,6 +205,7 @@ export default function App() {
             session={session}
             setPage={setPage}
             setActiveScheduleId={handleSetActiveScheduleId}
+            setSession={setSession}
           />
         );
       case 'contact':

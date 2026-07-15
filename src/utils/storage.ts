@@ -30,8 +30,171 @@ export function getSession(): UserSession | null {
   return getLocal<UserSession | null>('jadwalni_session', null);
 }
 
-export function saveSession(user: UserSession | null): void {
+export function saveSession(user: UserSession | null, password?: string): void {
   setLocal('jadwalni_session', user);
+  if (user && password) {
+    setLocal('jadwalni_creds', { email: user.email, name: user.name, password });
+    // Backup credentials to vault for 100% durable login persistence across container restarts
+    saveCredentialsToVault(user.id, user.email, user.name, password);
+  } else if (!user) {
+    localStorage.removeItem('jadwalni_creds');
+  }
+}
+
+export function saveCredentialsToVault(id: string, email: string, name: string, password?: string): void {
+  if (!isClient) return;
+  const vault = getLocal<Record<string, any>>('jadwalni_accounts_vault', {});
+  const emailLower = email.toLowerCase().trim();
+  
+  // Find if there's an existing entry with this email to preserve its data
+  let keyToUse = id;
+  const existingKey = Object.keys(vault).find(k => vault[k].email.toLowerCase().trim() === emailLower);
+  if (existingKey) {
+    keyToUse = existingKey;
+  }
+
+  const existing = vault[keyToUse] || {};
+  vault[keyToUse] = {
+    ...existing,
+    id: keyToUse,
+    email: emailLower,
+    name: name.trim(),
+    password: password !== undefined ? password : (existing.password || ''),
+    updatedAt: new Date().toISOString()
+  };
+  setLocal('jadwalni_accounts_vault', vault);
+}
+
+export function saveToVault(id: string, email: string, data: { profile: any; schedules: any[]; errors: any[]; progress: Record<string, string> }): void {
+  if (!isClient) return;
+  const vault = getLocal<Record<string, any>>('jadwalni_accounts_vault', {});
+  const emailLower = email.toLowerCase().trim();
+  
+  let keyToUse = id;
+  const existingKey = Object.keys(vault).find(k => vault[k].email.toLowerCase().trim() === emailLower);
+  if (existingKey) {
+    keyToUse = existingKey;
+  }
+
+  const existing = vault[keyToUse] || {};
+  vault[keyToUse] = {
+    ...existing,
+    id: keyToUse,
+    email: emailLower,
+    profile: data.profile || existing.profile,
+    schedules: data.schedules || existing.schedules,
+    errors: data.errors || existing.errors,
+    progress: data.progress || existing.progress,
+    updatedAt: new Date().toISOString()
+  };
+  setLocal('jadwalni_accounts_vault', vault);
+}
+
+export function updateVaultPassword(email: string, password?: string): void {
+  if (!isClient || !password) return;
+  const vault = getLocal<Record<string, any>>('jadwalni_accounts_vault', {});
+  const emailLower = email.toLowerCase().trim();
+  
+  const key = Object.keys(vault).find(k => vault[k].email.toLowerCase().trim() === emailLower);
+  if (key) {
+    vault[key].password = password;
+    vault[key].updatedAt = new Date().toISOString();
+    setLocal('jadwalni_accounts_vault', vault);
+  }
+}
+
+export async function attemptVaultLogin(email: string, password?: string): Promise<{ success: boolean; user?: UserSession; error?: string }> {
+  if (!isClient) return { success: false };
+  const vault = getLocal<Record<string, any>>('jadwalni_accounts_vault', {});
+  const emailLower = email.toLowerCase().trim();
+  
+  const foundKey = Object.keys(vault).find(k => vault[k].email.toLowerCase().trim() === emailLower);
+  if (!foundKey) {
+    return { success: false };
+  }
+
+  const account = vault[foundKey];
+  if (account.password !== password) {
+    return { success: false, error: "الجيميل أو الباسورد خطأ" };
+  }
+
+  // Password matched in vault! Let's auto-restore on server to guarantee server has the account
+  try {
+    const res = await fetch('/api/auth/auto-restore', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: account.email,
+        password: account.password,
+        name: account.name
+      })
+    });
+    
+    if (res.ok) {
+      const serverResult = await res.json();
+      console.log('Account restored on server successfully:', serverResult);
+    }
+  } catch (err) {
+    console.error('Failed to restore vault account to server:', err);
+  }
+
+  // Restore client-side data from vault
+  if (account.profile) {
+    const profiles = getLocal<Record<string, Profile>>('supabase_profiles', {});
+    profiles[account.id] = account.profile;
+    setLocal('supabase_profiles', profiles);
+  }
+  if (account.schedules) {
+    setLocal('jadwalni_schedules', account.schedules);
+  }
+  if (account.errors) {
+    setLocal('jadwalni_errors', account.errors);
+  }
+  if (account.progress) {
+    Object.entries(account.progress).forEach(([key, val]) => {
+      localStorage.setItem(key, val as string);
+    });
+  }
+
+  // Save back to active session
+  const sessionUser = { id: account.id, email: account.email, name: account.name };
+  saveSession(sessionUser, account.password);
+
+  // Sync to server to guarantee all data is fully restored there too
+  await saveAllToServer();
+
+  return {
+    success: true,
+    user: sessionUser
+  };
+}
+
+export async function autoRestoreSessionOnServer(): Promise<void> {
+  if (!isClient) return;
+  const creds = getLocal<{ email: string; name: string; password?: string } | null>('jadwalni_creds', null);
+  if (creds && creds.email && creds.password) {
+    try {
+      const res = await fetch('/api/auth/auto-restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: creds.email,
+          password: creds.password,
+          name: creds.name
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.restored) {
+          console.log('Session auto-restored successfully on server!');
+          // Re-sync all client data to server to restore files!
+          await saveAllToServer();
+        }
+      }
+    } catch (e) {
+      console.error('Failed to auto-restore session:', e);
+    }
+  }
 }
 
 export function clearUserDataOnLogout(): void {
@@ -39,6 +202,7 @@ export function clearUserDataOnLogout(): void {
   
   // Clear core schedule, profile, error, and session data
   localStorage.removeItem('jadwalni_session');
+  localStorage.removeItem('jadwalni_creds');
   localStorage.removeItem('jadwalni_schedules');
   localStorage.removeItem('jadwalni_errors');
   localStorage.removeItem('supabase_profiles');
@@ -49,6 +213,17 @@ export function clearUserDataOnLogout(): void {
     if (key && (key.startsWith('q:') || key.startsWith('v:'))) {
       localStorage.removeItem(key);
     }
+  }
+}
+
+export function permanentlyDeleteLocalAccountFromVault(email: string): void {
+  if (!isClient) return;
+  const vault = getLocal<Record<string, any>>('jadwalni_accounts_vault', {});
+  const emailLower = email.toLowerCase().trim();
+  const key = Object.keys(vault).find(k => vault[k].email.toLowerCase().trim() === emailLower);
+  if (key) {
+    delete vault[key];
+    setLocal('jadwalni_accounts_vault', vault);
   }
 }
 
@@ -82,6 +257,9 @@ export async function saveAllToServer(): Promise<void> {
       progress
     }
   };
+
+  // Back up data to local vault for full durability across server state-wipes
+  saveToVault(session.id, email, payload.data);
 
   try {
     await fetch('/api/user-data', {
