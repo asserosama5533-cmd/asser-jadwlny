@@ -18,6 +18,16 @@ async function startServer() {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 
+  // Serve generated Open Graph preview image
+  app.get(["/og-image.png", "/og-image.jpg"], (req, res) => {
+    const imgPath = path.join(process.cwd(), "src/assets/images/og_image_1784133414729.jpg");
+    if (fs.existsSync(imgPath)) {
+      res.sendFile(imgPath);
+    } else {
+      res.status(404).send("Not found");
+    }
+  });
+
   // Helper to send real emails via Brevo SMTP API or fall back safely to console simulation
   const sendBrevoOTP = (toEmail: string, code: string, userName: string): Promise<boolean> => {
     return new Promise((resolve) => {
