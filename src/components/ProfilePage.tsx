@@ -121,10 +121,10 @@ export default function ProfilePage({ session, setPage, setActiveScheduleId, set
       const vMap: Record<number, boolean> = {};
       found.daysList.forEach(day => {
         day.quantBanks.forEach(b => {
-          qMap[b] = isQuantCompleted(b);
+          qMap[b] = isQuantCompleted(b, found.id);
         });
         day.verbalSections.forEach(s => {
-          vMap[s] = isVerbalCompleted(s);
+          vMap[s] = isVerbalCompleted(s, found.id);
         });
       });
       setCompletedQuants(qMap);
@@ -226,20 +226,23 @@ export default function ProfilePage({ session, setPage, setActiveScheduleId, set
   };
 
   const handleToggleQuant = (bankNum: number) => {
+    if (!activeSchedule) return;
     const current = !!completedQuants[bankNum];
-    setQuantCompleted(bankNum, !current);
+    setQuantCompleted(bankNum, !current, activeSchedule.id);
     setCompletedQuants(prev => ({ ...prev, [bankNum]: !current }));
     setProgressTrigger(p => p + 1);
   };
 
   const handleToggleVerbal = (secNum: number) => {
+    if (!activeSchedule) return;
     const current = !!completedVerbals[secNum];
-    setVerbalCompleted(secNum, !current);
+    setVerbalCompleted(secNum, !current, activeSchedule.id);
     setCompletedVerbals(prev => ({ ...prev, [secNum]: !current }));
     setProgressTrigger(p => p + 1);
   };
 
   const handleBulkToggleVerbalRange = (dayNum: number, sections: number[], completed: boolean) => {
+    if (!activeSchedule) return;
     const startVal = verbalRangeStart[dayNum] ?? sections[0];
     const endVal = verbalRangeEnd[dayNum] ?? sections[sections.length - 1];
 
@@ -249,7 +252,7 @@ export default function ProfilePage({ session, setPage, setActiveScheduleId, set
     const targetSections = sections.filter(sec => sec >= min && sec <= max);
 
     targetSections.forEach(secNum => {
-      setVerbalCompleted(secNum, completed);
+      setVerbalCompleted(secNum, completed, activeSchedule.id);
     });
 
     setCompletedVerbals(prev => {

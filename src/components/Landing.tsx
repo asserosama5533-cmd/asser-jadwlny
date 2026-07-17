@@ -236,7 +236,7 @@ export default function Landing({ setPage, session }: LandingProps) {
           <div className="flex gap-6">
             <button onClick={() => setPage('contact')} className="hover:text-brand-gold transition-colors">اتصل بنا الدعم الفني</button>
             <span className="text-brand-gold/30">|</span>
-            <span className="text-brand-gold font-medium">إعداد: Asser</span>
+            <span className="text-brand-gold font-medium">إعداد: Asser Osama</span>
           </div>
         </div>
       </footer>

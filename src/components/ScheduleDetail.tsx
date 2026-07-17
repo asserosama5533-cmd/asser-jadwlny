@@ -191,10 +191,10 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
       const vMap: Record<number, boolean> = {};
       found.daysList.forEach(day => {
         day.quantBanks.forEach(b => {
-          qMap[b] = isQuantCompleted(b);
+          qMap[b] = isQuantCompleted(b, found.id);
         });
         day.verbalSections.forEach(s => {
-          vMap[s] = isVerbalCompleted(s);
+          vMap[s] = isVerbalCompleted(s, found.id);
         });
       });
       setCompletedQuants(qMap);
@@ -278,20 +278,23 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
   }
 
   const handleToggleQuant = (bankNum: number) => {
+    if (!schedule) return;
     const current = !!completedQuants[bankNum];
-    setQuantCompleted(bankNum, !current);
+    setQuantCompleted(bankNum, !current, schedule.id);
     setCompletedQuants(prev => ({ ...prev, [bankNum]: !current }));
     setUpdateTrigger(prev => prev + 1);
   };
 
   const handleToggleVerbal = (secNum: number) => {
+    if (!schedule) return;
     const current = !!completedVerbals[secNum];
-    setVerbalCompleted(secNum, !current);
+    setVerbalCompleted(secNum, !current, schedule.id);
     setCompletedVerbals(prev => ({ ...prev, [secNum]: !current }));
     setUpdateTrigger(prev => prev + 1);
   };
 
   const handleBulkToggleVerbalRange = (dayNum: number, sections: number[], completed: boolean) => {
+    if (!schedule) return;
     const startVal = verbalRangeStart[dayNum] ?? sections[0];
     const endVal = verbalRangeEnd[dayNum] ?? sections[sections.length - 1];
 
@@ -301,7 +304,7 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
     const targetSections = sections.filter(sec => sec >= min && sec <= max);
 
     targetSections.forEach(secNum => {
-      setVerbalCompleted(secNum, completed);
+      setVerbalCompleted(secNum, completed, schedule.id);
     });
 
     setCompletedVerbals(prev => {

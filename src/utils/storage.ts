@@ -471,37 +471,54 @@ export function saveSchedule(schedule: Schedule): void {
 export function deleteSchedule(id: string): void {
   const schedules = getSchedules();
   setLocal('jadwalni_schedules', schedules.filter(s => s.id !== id));
+  
+  // Clean up all completed progress keys starting with q:{id}: and v:{id}:
+  if (isClient) {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith(`q:${id}:`) || key.startsWith(`v:${id}:`))) {
+        localStorage.removeItem(key);
+      }
+    }
+  }
+  
   saveAllToServer();
 }
 
 // 3. Progress Storage
-// Keys: q:{n} for quant, v:{n} for verbal
-export function isQuantCompleted(bankNumber: number): boolean {
+// Keys: q:{scheduleId}:{n} for quant, v:{scheduleId}:{n} for verbal
+export function isQuantCompleted(bankNumber: number, scheduleId?: string): boolean {
   if (!isClient) return false;
-  return localStorage.getItem(`q:${bankNumber}`) === 'completed';
+  const sId = scheduleId || getSchedules()[0]?.id || 'default';
+  return localStorage.getItem(`q:${sId}:${bankNumber}`) === 'completed';
 }
 
-export function setQuantCompleted(bankNumber: number, completed: boolean): void {
+export function setQuantCompleted(bankNumber: number, completed: boolean, scheduleId?: string): void {
   if (!isClient) return;
+  const sId = scheduleId || getSchedules()[0]?.id || 'default';
+  const key = `q:${sId}:${bankNumber}`;
   if (completed) {
-    localStorage.setItem(`q:${bankNumber}`, 'completed');
+    localStorage.setItem(key, 'completed');
   } else {
-    localStorage.removeItem(`q:${bankNumber}`);
+    localStorage.removeItem(key);
   }
   saveAllToServer();
 }
 
-export function isVerbalCompleted(sectionNumber: number): boolean {
+export function isVerbalCompleted(sectionNumber: number, scheduleId?: string): boolean {
   if (!isClient) return false;
-  return localStorage.getItem(`v:${sectionNumber}`) === 'completed';
+  const sId = scheduleId || getSchedules()[0]?.id || 'default';
+  return localStorage.getItem(`v:${sId}:${sectionNumber}`) === 'completed';
 }
 
-export function setVerbalCompleted(sectionNumber: number, completed: boolean): void {
+export function setVerbalCompleted(sectionNumber: number, completed: boolean, scheduleId?: string): void {
   if (!isClient) return;
+  const sId = scheduleId || getSchedules()[0]?.id || 'default';
+  const key = `v:${sId}:${sectionNumber}`;
   if (completed) {
-    localStorage.setItem(`v:${sectionNumber}`, 'completed');
+    localStorage.setItem(key, 'completed');
   } else {
-    localStorage.removeItem(`v:${sectionNumber}`);
+    localStorage.removeItem(key);
   }
   saveAllToServer();
 }
@@ -549,17 +566,52 @@ export function getCompletionStats(schedule: Schedule) {
   const quantBanksList = Array.from(uniqueQuantBanks);
   const verbalSectionsList = Array.from(uniqueVerbalSections);
 
+  // Legacy progress migration: copy any old unscoped keys to this schedule ID, then delete them
+  if (isClient) {
+    let migrated = false;
+    quantBanksList.forEach(b => {
+      const oldKey = `q:${b}`;
+      const oldVal = localStorage.getItem(oldKey);
+      if (oldVal === 'completed') {
+        const newKey = `q:${schedule.id}:${b}`;
+        if (localStorage.getItem(newKey) === null) {
+          localStorage.setItem(newKey, 'completed');
+          migrated = true;
+        }
+      }
+    });
+
+    verbalSectionsList.forEach(s => {
+      const oldKey = `v:${s}`;
+      const oldVal = localStorage.getItem(oldKey);
+      if (oldVal === 'completed') {
+        const newKey = `v:${schedule.id}:${s}`;
+        if (localStorage.getItem(newKey) === null) {
+          localStorage.setItem(newKey, 'completed');
+          migrated = true;
+        }
+      }
+    });
+
+    if (migrated) {
+      // Safely delete old keys now that they are scoped to this schedule
+      quantBanksList.forEach(b => localStorage.removeItem(`q:${b}`));
+      verbalSectionsList.forEach(s => localStorage.removeItem(`v:${s}`));
+      saveAllToServer();
+    }
+  }
+
   const totalQuant = quantBanksList.length;
   const totalVerbal = verbalSectionsList.length;
 
   let completedQuant = 0;
   quantBanksList.forEach(b => {
-    if (isQuantCompleted(b)) completedQuant++;
+    if (isQuantCompleted(b, schedule.id)) completedQuant++;
   });
 
   let completedVerbal = 0;
   verbalSectionsList.forEach(s => {
-    if (isVerbalCompleted(s)) completedVerbal++;
+    if (isVerbalCompleted(s, schedule.id)) completedVerbal++;
   });
 
   const completedTasks = completedQuant + completedVerbal;
