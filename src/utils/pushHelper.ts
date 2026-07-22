@@ -42,8 +42,14 @@ export async function syncPushSubscription(customReminderTimes?: string[], force
     const { publicKey } = await response.json();
     const applicationServerKey = urlB64ToUint8Array(publicKey);
 
-    // 3. Get Active Service Worker Registration
-    const registration = await navigator.serviceWorker.ready;
+    // 3. Get Active Service Worker Registration (Ensure registered for Android Chrome)
+    let registration: ServiceWorkerRegistration;
+    try {
+      registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      await navigator.serviceWorker.ready;
+    } catch (e) {
+      registration = await navigator.serviceWorker.ready;
+    }
 
     // 4. Subscribe to Push Manager
     let subscription = await registration.pushManager.getSubscription();

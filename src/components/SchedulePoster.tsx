@@ -16,7 +16,7 @@ export default function SchedulePoster({ schedule }: SchedulePosterProps) {
   // Poster customizable states
   const [title, setTitle] = useState('ثق بالله وهتقفل القدرات');
   const [eventName, setEventName] = useState(schedule.name || 'تقفيل القدرات');
-  const [creatorName, setCreatorName] = useState('Asser-jadwlny');
+  const creatorName = 'Asser Osama'; // Fixed author name
   
   // Notes on notebook lines (updated default motivational / error review points)
   const [notes, setNotes] = useState([
@@ -83,20 +83,7 @@ export default function SchedulePoster({ schedule }: SchedulePosterProps) {
     touchStartRef.current = null;
   };
 
-  // Load profile name if exists
-  useEffect(() => {
-    const session = getSession();
-    if (session) {
-      const profile = getProfile(session.id);
-      if (profile && profile.name && profile.name !== 'طالب جديد') {
-        setCreatorName(profile.name);
-      } else {
-        setCreatorName('Asser-jadwlny');
-      }
-    } else {
-      setCreatorName('Asser-jadwlny');
-    }
-  }, []);
+
 
   const handleDownload = async () => {
     if (!posterRef.current) return;
@@ -140,7 +127,7 @@ export default function SchedulePoster({ schedule }: SchedulePosterProps) {
           await navigator.share({
             files: [file],
             title: `جدولي لاختبار القدرات - ${eventName}`,
-            text: `صممت جدولي للمذاكرة عبر منصة جدولني للقدرات من إعداد Asser!`,
+            text: `صممت جدولي للمذاكرة عبر منصة جدولني للقدرات من إعداد Asser Osama!`,
           });
         } else {
           handleDownload();
@@ -194,7 +181,7 @@ export default function SchedulePoster({ schedule }: SchedulePosterProps) {
           await navigator.share({
             files: [file],
             title: `جدولي لاختبار القدرات - ${eventName}`,
-            text: `صممت جدولي للمذاكرة عبر منصة جدولني للقدرات من إعداد Asser!`,
+            text: `صممت جدولي للمذاكرة عبر منصة جدولني للقدرات من إعداد Asser Osama!`,
           });
         } else {
           handleModalDownload();
@@ -526,28 +513,57 @@ export default function SchedulePoster({ schedule }: SchedulePosterProps) {
 
         </div>
 
-        {/* Footer Section: Prepared By (إعداد) */}
-        <div className="border-t-2 border-brand-blue/20 pt-4 flex justify-between items-center relative z-10 text-xs text-brand-blue/70 font-semibold px-4">
+        {/* Footer Section: Prepared By (إعداد) & Social Media Handles */}
+        <div className="border-t-2 border-brand-blue/20 pt-3 space-y-2.5 relative z-10 text-xs text-brand-blue/80 font-semibold px-4">
           
-          {/* Logo/Copyright */}
-          <div>
-            أُنشئ وصُمّم عبر منصة <span className="text-brand-blue font-extrabold">جدولني للقدرات</span>
-          </div>
-          
-          {/* Creator name with Graduation cap and heart */}
-          <div className="flex flex-col items-end gap-0.5 text-right">
-            <div className="flex items-center gap-1.5 text-sm font-black text-brand-blue">
-              <span>إعداد:</span>
-              <span className="font-sans text-brand-gold text-lg font-black">{creatorName}</span>
-              
-              {/* Graduation Cap SVG icon */}
-              <svg className="w-5 h-5 text-brand-blue" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          {/* Row 1: Platform Branding & Creator Name */}
+          <div className="flex items-center justify-between gap-2">
+            {/* Logo/Copyright */}
+            <div className="text-[11px] font-bold text-brand-blue/70">
+              أُنشئ وصُمّم عبر منصة <span className="text-brand-blue font-extrabold">جدولني للقدرات</span>
+            </div>
+
+            {/* Creator Name (Fixed to Asser Osama) */}
+            <div className="flex items-center gap-1.5 text-sm font-black text-brand-blue bg-white/60 px-3 py-1 rounded-lg border border-brand-blue/10">
+              <span className="text-gray-500 font-bold text-xs">إعداد:</span>
+              <span className="font-sans text-brand-gold text-base font-black tracking-wide">{creatorName}</span>
+              <svg className="w-5 h-5 text-brand-blue shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
                 <path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5" />
               </svg>
             </div>
-            <div className="text-[10px] text-gray-400 font-mono tracking-wider font-extrabold pr-8">
-              o1v__asser
+          </div>
+
+          {/* Row 2: Social Media Handles Bar (Spacious and highly readable) */}
+          <div className="flex items-center justify-between bg-brand-blue/5 border border-brand-blue/15 px-3.5 py-2 rounded-xl shadow-2xs">
+            <div className="flex items-center gap-1.5 text-xs font-black text-brand-blue shrink-0">
+              <span>تابعني على:</span>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0" dir="ltr">
+              {/* Telegram */}
+              <div className="flex items-center gap-1 text-[11px] font-mono font-black text-sky-700 bg-white px-2.5 py-1 rounded-lg border border-sky-200 shadow-2xs" dir="ltr">
+                <svg className="w-3.5 h-3.5 text-sky-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.56 8.16l-2.03 9.56c-.15.68-.55.84-1.12.52l-3.1-2.29-1.5 1.44c-.17.17-.31.31-.63.31l.22-3.17 5.77-5.21c.25-.22-.05-.35-.39-.12l-7.14 4.5-3.07-.96c-.67-.21-.68-.67.14-.99l12.01-4.63c.56-.21 1.05.13.84.85z"/>
+                </svg>
+                <span>تيليجرام: <span className="text-sky-600" dir="ltr">@Asser70</span></span>
+              </div>
+
+              {/* Instagram */}
+              <div className="flex items-center gap-1 text-[11px] font-mono font-black text-pink-700 bg-white px-2.5 py-1 rounded-lg border border-pink-200 shadow-2xs" dir="ltr">
+                <svg className="w-3.5 h-3.5 text-pink-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                </svg>
+                <span>انستقرام: <span className="text-pink-600" dir="ltr">@_asser016</span></span>
+              </div>
+
+              {/* TikTok */}
+              <div className="flex items-center gap-1 text-[11px] font-mono font-black text-slate-800 bg-white px-2.5 py-1 rounded-lg border border-slate-300 shadow-2xs" dir="ltr">
+                <svg className="w-3.5 h-3.5 text-slate-900 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64c.29 0 .56.04.82.11V9.4a6.33 6.33 0 00-1-.08A6.34 6.34 0 003 15.66a6.34 6.34 0 0010.86 4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1.04-.52z"/>
+                </svg>
+                <span>تيك توك: <span className="text-slate-900" dir="ltr">@o1v__asser</span></span>
+              </div>
             </div>
           </div>
 

@@ -57,13 +57,13 @@ export default function NotificationGuideModal({ isOpen, onClose }: Notification
             {/* Content Body */}
             <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto">
               
-              {/* Important Preview Warning */}
+              {/* Simple & Friendly Notification Explanation */}
               <div className="bg-amber-500/10 border border-amber-500/20 p-4 rounded-2xl flex gap-3 items-start">
                 <HelpCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
                 <div className="space-y-1">
-                  <span className="block text-xs font-black text-amber-800 dark:text-amber-400">لماذا لم يصلك تنبيه حتى الآن؟ 🤔</span>
+                  <span className="block text-xs font-black text-amber-800 dark:text-amber-400">لماذا نحتاج لتثبيت الموقع كتطبيق؟ 📱</span>
                   <p className="text-[11px] text-amber-700/90 dark:text-amber-400/80 leading-relaxed">
-                    متصفحات الويب <b>تمنع تماماً</b> طلب صلاحيات الإشعارات داخل <b>نوافذ التطوير أو المعاينة (iframe)</b> لحماية أمنك. لتجربتها بنجاح، لا بد من فتح الموقع في نافذة تصفح حقيقية.
+                    كما تعلم، إشعارات الجوال ترتبط دائماً بالتطبيقات المثبتة على هاتفك. لكي يصلك تنبيه المذاكرة اليومي بدقة حتّى عند إغلاق الشاشة، كل ما عليك هو <b>إضافة الموقع لشاشتك الرئيسية كتطبيق</b> بخطوة واحدة بسيطة من الخيارات، وسيصلك التنبيه في موعده تماماً! 🚀
                   </p>
                 </div>
               </div>
@@ -114,41 +114,38 @@ export default function NotificationGuideModal({ isOpen, onClose }: Notification
               <div className="space-y-3 pt-2">
                 <div className="flex items-center gap-2 border-b border-gray-100 dark:border-slate-800 pb-2">
                   <Globe className="w-5 h-5 text-green-500" />
-                  <span className="text-sm font-black text-brand-blue dark:text-white">لأجهزة الأندرويد والكمبيوتر (Android / PC) 🤖💻</span>
+                  <span className="text-sm font-black text-brand-blue dark:text-white">لأجهزة الأندرويد والكمبيوتر (Android / Chrome) 🤖💻</span>
                 </div>
                 
+                <div className="bg-emerald-50/80 border border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800/40 p-3.5 rounded-2xl text-xs text-emerald-900 dark:text-emerald-300 font-bold leading-relaxed mb-3">
+                  💡 <b>بشرى سارة:</b> لا تحتاج لتغيير أي إعدادات معقدة في جوالك! الإشعارات تعمل تلقائياً على الأندرويد في ثوانٍ بطريقتين سهلتين:
+                </div>
+
                 <div className="relative border-r-2 border-green-500/30 mr-3 pr-4 space-y-4">
+                  
+                  {/* Method 1 */}
                   <div className="relative">
                     <span className="absolute right-[-23px] top-0.5 w-4.5 h-4.5 rounded-full bg-green-500 text-white font-mono text-[10px] font-black flex items-center justify-center">1</span>
-                    <span className="block text-xs font-bold text-gray-800 dark:text-slate-200">افتح الموقع في نافذة جديدة</span>
-                    <span className="block text-[11px] text-gray-500 dark:text-slate-400 leading-normal mt-0.5">
-                      انقر على زر <b>"فتح في نافذة جديدة" <ExternalLink className="inline w-3 h-3 mx-0.5" /></b> في الزاوية العلوية اليسرى/اليمنى من المتصفح لتعمل الإشغارات خارج إطار المطورين المغلق.
+                    <span className="block text-xs font-bold text-gray-800 dark:text-slate-200">الطريقة الأولى (الأسهل والأسرع):</span>
+                    <span className="block text-[11px] text-gray-600 dark:text-slate-400 leading-normal mt-1">
+                      1. افتح الموقع في متصفح Chrome برابط كامل (خارج إطار المعاينة).<br />
+                      2. اضغط على زر <b>"🔔 تجربة التنبيه"</b> داخل صفحة الجدول.<br />
+                      3. اختر <b>"سماح" (Allow)</b> في الرسالة التي تظهر أعلى الشاشة.<br />
+                      <b>وحالاً ستصلك التنبيهات في الموعد المذاكرة المحدد حتّى والموقع مغلق! ✅</b>
                     </span>
                   </div>
 
-                  <div className="relative">
-                    <span className="absolute right-[-23px] top-0.5 w-4.5 h-4.5 rounded-full bg-green-500 text-white font-mono text-[10px] font-black flex items-center justify-center">2</span>
-                    <span className="block text-xs font-bold text-gray-800 dark:text-slate-200">اسمح بطلب الإشعار (Allow)</span>
-                    <span className="block text-[11px] text-gray-500 dark:text-slate-400 leading-normal mt-0.5">
-                      عندما يسألك المتصفح "هل تود السماح بالإشعارات؟"، اضغط على <b>"سماح" (Allow)</b>.
+                  {/* Method 2 */}
+                  <div className="relative border-t border-gray-100 dark:border-slate-800 pt-3">
+                    <span className="absolute right-[-23px] top-3.5 w-4.5 h-4.5 rounded-full bg-brand-gold text-brand-blue font-mono text-[10px] font-black flex items-center justify-center">2</span>
+                    <span className="block text-xs font-bold text-gray-800 dark:text-slate-200">الطريقة الثانية (تثبيت تطبيق جدولني على الشاشة):</span>
+                    <span className="block text-[11px] text-gray-600 dark:text-slate-400 leading-normal mt-1">
+                      1. اضغط على نقاط الخيارات الثلاثة <b>(⋮)</b> في أعلى متصفح Chrome.<br />
+                      2. اختر <b>"تثبيت التطبيق" (Install app)</b> أو <b>"إضافة إلى الشاشة الرئيسية"</b>.<br />
+                      3. سيظهر أيقونة "جدولني" كـ تطبيق حقيقي على شاشتك. عند فتحه واختيار وقت المذاكرة سينبهك تلقائياً دون أي خطوات إضافية! 🚀
                     </span>
                   </div>
 
-                  <div className="relative">
-                    <span className="absolute right-[-23px] top-0.5 w-4.5 h-4.5 rounded-full bg-green-500 text-white font-mono text-[10px] font-black flex items-center justify-center">3</span>
-                    <span className="block text-xs font-bold text-gray-800 dark:text-slate-200">تصلك التنبيهات حتى والموقع مغلق بالكامل! 🚀</span>
-                    <span className="block text-[11px] text-gray-500 dark:text-slate-400 leading-normal mt-0.5">
-                      بفضل تقنية <b>Web Push</b> المتطورة، ستصلك تنبيهات المذاكرة اليومية بدقة في وقتها المحدد حتى لو قمت بإغلاق موقع "جدولني" وإغلاق المتصفح تماماً!
-                    </span>
-                  </div>
-
-                  <div className="relative">
-                    <span className="absolute right-[-23px] top-0.5 w-4.5 h-4.5 rounded-full bg-green-500 text-white font-mono text-[10px] font-black flex items-center justify-center">4</span>
-                    <span className="block text-xs font-bold text-gray-800 dark:text-slate-200">تثبيت التطبيق وإلغاء قيود البطارية (لضمان دقة 100%) 🔋</span>
-                    <span className="block text-[11px] text-gray-500 dark:text-slate-400 leading-normal mt-0.5">
-                      نوصيك بشدة بالنقر على النقاط الثلاثة في متصفح Chrome واختيار <b>"تثبيت التطبيق" (Install App)</b>. كما يفضل الدخول إلى إعدادات هاتفك للأندرويد ثم التطبيقات ثم Chrome أو جدولني ثم البطارية ثم تعيينها على وضع <b>"غير مقيدة" (Unrestricted)</b> لضمان عدم وضع الإشعارات في وضع السكون من قِبل نظام أندرويد لتوفير الطاقة.
-                    </span>
-                  </div>
                 </div>
               </div>
 

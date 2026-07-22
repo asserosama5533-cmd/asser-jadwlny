@@ -1,5 +1,13 @@
 import { Schedule, StudyDay } from '../types';
 
+export const MOST_FREQUENT_QUANT_BANKS: number[] = [
+  ...Array.from({ length: 18 }, (_, i) => i + 1), // 1 to 18
+  20, 21, 22,                                     // 20 to 22
+  24, 25, 26, 27, 28, 29,                         // 24 to 29
+  50, 57, 58, 68, 74, 76, 82, 86, 90, 93, 96, 98,  // Individual banks
+  ...Array.from({ length: 23 }, (_, i) => i + 102), // 102 to 124
+];
+
 export function formatDate(date: Date): string {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, '0');
@@ -21,11 +29,26 @@ export function generateSchedule(
   useSeparateDurations: boolean = false,
   quantDuration: number = 30,
   verbalDuration: number = 5,
-  verbalRestDays: number = 0
+  verbalRestDays: number = 0,
+  quantMode: 'all' | 'custom' | 'frequent' = 'all'
 ): Schedule {
   const startDate = new Date(startDateString);
   let activeStudyDays = 0;
   let totalCalendarDays = 0;
+
+  // Build the list of quant banks based on mode
+  let quantBanksList: number[] = [];
+  if (quantMode === 'frequent') {
+    quantBanksList = [...MOST_FREQUENT_QUANT_BANKS];
+  } else if (quantMode === 'custom') {
+    for (let i = quantFrom; i <= quantTo; i++) {
+      quantBanksList.push(i);
+    }
+  } else {
+    for (let i = 1; i <= 124; i++) {
+      quantBanksList.push(i);
+    }
+  }
 
   if (useSeparateDurations && scheduleType === 'both') {
     activeStudyDays = Math.max(quantDuration, verbalDuration);
@@ -78,13 +101,12 @@ export function generateSchedule(
       if (useSeparateDurations && scheduleType === 'both') {
         // Quantitative assignment: split over quantDuration
         if (currentStudyDayIndex < quantDuration) {
-          const totalQuant = Math.max(1, quantTo - quantFrom + 1);
+          const totalQuant = quantBanksList.length;
           const qStartOffset = Math.floor(currentStudyDayIndex * totalQuant / quantDuration);
           const qEndOffset = Math.floor((currentStudyDayIndex + 1) * totalQuant / quantDuration);
           for (let q = qStartOffset; q < qEndOffset; q++) {
-            const bankNum = quantFrom + q;
-            if (bankNum <= quantTo) {
-              quantBanks.push(bankNum);
+            if (q < quantBanksList.length) {
+              quantBanks.push(quantBanksList[q]);
             }
           }
         }
@@ -105,15 +127,14 @@ export function generateSchedule(
         }
       } else {
         // Standard assignment
-        // Quantitative distribution: Custom range
+        // Quantitative distribution
         if (scheduleType !== 'verbal') {
-          const totalQuant = Math.max(1, quantTo - quantFrom + 1);
+          const totalQuant = quantBanksList.length;
           const qStartOffset = Math.floor(currentStudyDayIndex * totalQuant / activeStudyDays);
           const qEndOffset = Math.floor((currentStudyDayIndex + 1) * totalQuant / activeStudyDays);
           for (let q = qStartOffset; q < qEndOffset; q++) {
-            const bankNum = quantFrom + q;
-            if (bankNum <= quantTo) {
-              quantBanks.push(bankNum);
+            if (q < quantBanksList.length) {
+              quantBanks.push(quantBanksList[q]);
             }
           }
         }
@@ -155,9 +176,13 @@ export function generateSchedule(
     }
   }
 
-  const generatedName = name.trim() || (useSeparateDurations && scheduleType === 'both' 
-    ? `جدول مخصص (كمي: ${quantDuration} يوم، لفظي: ${verbalDuration} يوم)`
-    : `جدول مذاكرة - ${duration} ${durationUnit === 'days' ? 'يوم' : 'شهر'}`);
+  const defaultName = quantMode === 'frequent'
+    ? `جدول الأكثر تكراراً كمي (62 بنك)`
+    : (useSeparateDurations && scheduleType === 'both' 
+      ? `جدول مخصص (كمي: ${quantDuration} يوم، لفظي: ${verbalDuration} يوم)`
+      : `جدول مذاكرة - ${duration} ${durationUnit === 'days' ? 'يوم' : 'شهر'}`);
+
+  const generatedName = name.trim() || defaultName;
 
   return {
     id: 'sched_' + Math.random().toString(36).substr(2, 9),
@@ -171,9 +196,12 @@ export function generateSchedule(
     daysList,
     totalStudyDays: activeStudyDays,
     totalCalendarDays,
-    quantRange: scheduleType !== 'verbal' ? { from: quantFrom, to: quantTo } : undefined,
+    quantRange: scheduleType !== 'verbal' 
+      ? (quantMode === 'frequent' ? { from: 1, to: 124 } : { from: quantFrom, to: quantTo })
+      : undefined,
     verbalRange: scheduleType !== 'quant' ? { from: verbalFrom, to: verbalTo } : undefined,
     scheduleType,
+    quantMode,
     cycleCount: 1,
     isLoopEnabled: true,
     useSeparateDurations,

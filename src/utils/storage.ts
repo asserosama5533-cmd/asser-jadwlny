@@ -325,6 +325,7 @@ export function getProfile(userId: string): Profile {
   if (profiles[userId]) {
     const p = profiles[userId];
     if (p.streakCount === undefined) p.streakCount = 0;
+    if (p.bestStreak === undefined) p.bestStreak = p.streakCount;
     if (p.lastStudyDate === undefined) p.lastStudyDate = '';
     return p;
   }
@@ -338,6 +339,7 @@ export function getProfile(userId: string): Profile {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     streakCount: 0,
+    bestStreak: 0,
     lastStudyDate: '',
   };
   profiles[userId] = newProfile;
@@ -363,7 +365,7 @@ export function getYesterdayDateString(): string {
   return `${year}-${month}-${day}`;
 }
 
-export function incrementStudyStreak(userId: string): Profile {
+export function incrementStudyStreak(userId: string): { profile: Profile; isNewStreak: boolean } {
   const profiles = getLocal<Record<string, Profile>>('supabase_profiles', {});
   const profile = getProfile(userId);
   const today = getTodayDateString();
@@ -373,19 +375,23 @@ export function incrementStudyStreak(userId: string): Profile {
   const lastDate = profile.lastStudyDate || '';
 
   if (lastDate === today) {
-    // Already updated today, do nothing
-    return profile;
+    // Already updated today
+    return { profile, isNewStreak: false };
   } else if (lastDate === yesterday) {
     // Consecutive day
     newStreak = newStreak + 1;
   } else {
-    // Streak broken or brand new
+    // Gap or brand new: start at 1 day
     newStreak = 1;
   }
+
+  const currentBest = Math.max(profile.bestStreak || 0, profile.streakCount || 0);
+  const newBest = Math.max(currentBest, newStreak);
 
   const updated: Profile = {
     ...profile,
     streakCount: newStreak,
+    bestStreak: newBest,
     lastStudyDate: today,
     updatedAt: new Date().toISOString(),
   };
@@ -393,7 +399,7 @@ export function incrementStudyStreak(userId: string): Profile {
   profiles[userId] = updated;
   setLocal('supabase_profiles', profiles);
   saveAllToServer();
-  return updated;
+  return { profile: updated, isNewStreak: true };
 }
 
 export function checkAndUpdateStreakOnLoad(userId: string): Profile {
@@ -404,13 +410,15 @@ export function checkAndUpdateStreakOnLoad(userId: string): Profile {
 
   const lastDate = profile.lastStudyDate || '';
   let streak = profile.streakCount || 0;
+  const best = Math.max(profile.bestStreak || 0, streak);
 
-  // If last study date exists and is neither today nor yesterday, the streak is broken and should be reset to 0
+  // If last study date exists and is neither today nor yesterday, current streak resets to 0, but bestStreak is preserved
   if (lastDate && lastDate !== today && lastDate !== yesterday) {
     streak = 0;
     const updated: Profile = {
       ...profile,
       streakCount: streak,
+      bestStreak: best,
       updatedAt: new Date().toISOString(),
     };
     profiles[userId] = updated;
@@ -419,7 +427,42 @@ export function checkAndUpdateStreakOnLoad(userId: string): Profile {
     return updated;
   }
 
-  return profile;
+  return { ...profile, bestStreak: best };
+}
+
+// Automatically check if today's study tasks are finished and increment streak
+export function checkAndAutoTriggerStreak(userId: string | undefined, schedule: Schedule | null): { triggered: boolean; streakCount: number } {
+  if (!userId || !schedule) return { triggered: false, streakCount: 0 };
+
+  const profile = getProfile(userId);
+  const todayStr = getTodayDateString();
+
+  // If already recorded today, do not auto trigger again
+  if (profile.lastStudyDate === todayStr) {
+    return { triggered: false, streakCount: profile.streakCount || 0 };
+  }
+
+  // Check if any study day in this schedule has tasks and is 100% completed right now
+  const fullyCompletedStudyDay = schedule.daysList.find(d => {
+    if (!d.isStudyDay) return false;
+    const total = d.quantBanks.length + d.verbalSections.length;
+    if (total === 0) return false;
+    const qDone = d.quantBanks.filter(b => isQuantCompleted(b, schedule.id)).length;
+    const vDone = d.verbalSections.filter(s => isVerbalCompleted(s, schedule.id)).length;
+    return (qDone + vDone) === total;
+  });
+
+  if (!fullyCompletedStudyDay) {
+    return { triggered: false, streakCount: 0 };
+  }
+
+  // Auto increment streak!
+  const { profile: updated, isNewStreak } = incrementStudyStreak(userId);
+  if (isNewStreak) {
+    return { triggered: true, streakCount: updated.streakCount || 1 };
+  }
+
+  return { triggered: false, streakCount: updated.streakCount || 0 };
 }
 
 export function updateProfile(userId: string, name: string, goal: string, avatarUrl?: string, daysUntilExam?: number): Profile {

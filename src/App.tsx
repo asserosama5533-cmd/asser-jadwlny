@@ -45,14 +45,13 @@ export default function App() {
     }
   }, []);
 
-  // Study Reminder Notification background check
+  // Study Reminder Notification background check (Client-side fallback)
   useEffect(() => {
     if (typeof window === 'undefined' || !('Notification' in window)) return;
 
     let lastNotifiedTime = '';
 
     const showLocalNotification = (title: string, body: string) => {
-      // Try service worker notification first (for robust mobile support)
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.ready.then(registration => {
           registration.showNotification(title, {
@@ -62,7 +61,6 @@ export default function App() {
             vibrate: [200, 100, 200]
           } as any);
         }).catch(() => {
-          // Fallback to standard window Notification
           new Notification(title, { body });
         });
       } else {
@@ -71,12 +69,6 @@ export default function App() {
     };
 
     const checkReminder = () => {
-      // If Web Push is active, or permission is granted (meaning we either have active push or are about to subscribe),
-      // we let the server handle it to prevent duplicate notifications (especially across multiple open tabs).
-      if (Notification.permission === 'granted' || localStorage.getItem('jadwalni_push_active') === 'true') {
-        return;
-      }
-
       const now = new Date();
       const currentHours = String(now.getHours()).padStart(2, '0');
       const currentMinutes = String(now.getMinutes()).padStart(2, '0');
@@ -96,24 +88,13 @@ export default function App() {
               '📖 حان وقت المذاكرة والتميز! 🚀',
               `يا بطل، حان وقت مذاكرة جدولك "${matchingSchedule.name || 'القدرات'}". همتك عالية والـ 100% بانتظارك! 💪✨`
             );
-          } else if (Notification.permission !== 'denied') {
-            Notification.requestPermission().then(permission => {
-              if (permission === 'granted') {
-                showLocalNotification(
-                  '📖 حان وقت المذاكرة والتميز! 🚀',
-                  `يا بطل، حان وقت مذاكرة جدولك "${matchingSchedule.name || 'القدرات'}". همتك عالية والـ 100% بانتظارك! 💪✨`
-                );
-              }
-            });
           }
         }
       });
     };
 
-    // Check immediately and then every 30 seconds
     checkReminder();
-    const intervalId = setInterval(checkReminder, 30000);
-
+    const intervalId = setInterval(checkReminder, 25000);
     return () => clearInterval(intervalId);
   }, []);
 

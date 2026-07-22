@@ -6,6 +6,7 @@ export interface Profile {
   createdAt: string;
   updatedAt: string;
   streakCount?: number;
+  bestStreak?: number;
   lastStudyDate?: string; // "YYYY-MM-DD"
   daysUntilExam?: number;
 }
@@ -35,6 +36,7 @@ export interface Schedule {
   quantRange?: { from: number; to: number };
   verbalRange?: { from: number; to: number };
   scheduleType?: 'both' | 'quant' | 'verbal';
+  quantMode?: 'all' | 'custom' | 'frequent';
   cycleCount?: number;
   isLoopEnabled?: boolean;
   useSeparateDurations?: boolean;

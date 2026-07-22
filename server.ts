@@ -678,7 +678,7 @@ async function startServer() {
     }
   });
 
-  // Web Manifest route for Progressive Web App (PWA) support (crucial for iOS push/notifications)
+  // Web Manifest route for Progressive Web App (PWA) support (crucial for iOS & Android push/notifications)
   app.get("/manifest.json", (req, res) => {
     res.setHeader("Content-Type", "application/json");
     res.send({
@@ -689,6 +689,7 @@ async function startServer() {
       display: "standalone",
       background_color: "#0f172a",
       theme_color: "#0f172a",
+      gcm_sender_id: "103953800507",
       icons: [
         {
           src: "/favicon.ico",

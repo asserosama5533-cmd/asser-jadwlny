@@ -3,13 +3,13 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   ArrowRight, Calendar, BookOpen, Award, CheckCircle2, 
   ChevronDown, ChevronUp, AlertCircle, Plus, Smile, BookMarked,
-  Info, Trash2, Bell, Clock, HelpCircle
+  Info, Trash2, Bell, Clock, HelpCircle, Flame
 } from 'lucide-react';
 import { Page, Schedule, StudyDay, DailyError } from '../types';
 import { 
   getSchedules, saveSchedule, isQuantCompleted, setQuantCompleted, 
   isVerbalCompleted, setVerbalCompleted, getCompletionStats,
-  addDailyError, getDailyErrors, deleteDailyError
+  addDailyError, getDailyErrors, deleteDailyError, checkAndAutoTriggerStreak
 } from '../utils/storage';
 import SchedulePoster from './SchedulePoster';
 import NotificationGuideModal from './NotificationGuideModal';
@@ -28,6 +28,17 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
   const [testNotificationState, setTestNotificationState] = useState<'idle' | 'requesting' | 'countdown' | 'sent'>('idle');
   const [countdown, setCountdown] = useState<number>(3);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+
+  const [streakToast, setStreakToast] = useState<{ show: boolean; count: number } | null>(null);
+
+  const checkAutoStreak = () => {
+    if (!schedule || !session?.id) return;
+    const res = checkAndAutoTriggerStreak(session.id, schedule);
+    if (res.triggered) {
+      setStreakToast({ show: true, count: res.streakCount });
+      setTimeout(() => setStreakToast(null), 5000);
+    }
+  };
 
   const handleTestNotification = async () => {
     if (typeof window === 'undefined' || !('Notification' in window)) {
@@ -283,6 +294,7 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
     setQuantCompleted(bankNum, !current, schedule.id);
     setCompletedQuants(prev => ({ ...prev, [bankNum]: !current }));
     setUpdateTrigger(prev => prev + 1);
+    setTimeout(checkAutoStreak, 50);
   };
 
   const handleToggleVerbal = (secNum: number) => {
@@ -291,6 +303,7 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
     setVerbalCompleted(secNum, !current, schedule.id);
     setCompletedVerbals(prev => ({ ...prev, [secNum]: !current }));
     setUpdateTrigger(prev => prev + 1);
+    setTimeout(checkAutoStreak, 50);
   };
 
   const handleBulkToggleVerbalRange = (dayNum: number, sections: number[], completed: boolean) => {
@@ -318,6 +331,7 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
     // Reset range selection and close form
     setShowRangeForm(prev => ({ ...prev, [dayNum]: false }));
     setUpdateTrigger(prev => prev + 1);
+    setTimeout(checkAutoStreak, 50);
   };
 
   const handleOpenErrorForm = (type: 'quant' | 'verbal', itemNum: number, dayNum?: number) => {
@@ -1088,101 +1102,72 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
         </div>
       </div>
 
-      {/* Study Reminder Settings & Live Test Widget */}
-      <div className="bg-white border border-brand-blue/5 rounded-2xl shadow-xl shadow-brand-blue/5 p-6 mb-8 text-right space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
+      {/* Reminder & Alarm Card */}
+      <div className="bg-white border border-brand-blue/5 rounded-2xl shadow-sm p-5 mb-8 text-right space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
           <div className="space-y-1">
-            <h3 className="text-base font-black text-brand-blue flex items-center gap-2">
-              <Bell className="w-5 h-5 text-brand-gold animate-swing" />
-              <span>منبه وتذكير المذاكرة اليومي ⏰</span>
+            <h3 className="text-sm font-black text-brand-blue flex items-center gap-2">
+              <Bell className="w-4 h-4 text-brand-gold animate-swing" />
+              <span>منبه وتذكير المذاكرة اليومي لهذا الجدول ⏰</span>
             </h3>
-            <p className="text-xs text-gray-500 max-w-xl">
-              تحديد موعد يومي لإرسال تنبيه مباشر وموثوق لهاتفك أو جهازك، ينبهك لبدء جلستك الدراسية تلقائياً حتى عند إغلاق التطبيق.
+            <p className="text-xs text-gray-500">
+              تلقّ إشعارات تلقائية على هاتفك (أندرويد وآيفون) لتذكيرك بموعد المذاكرة المحدد حتّى لو كان الموقع مغلقاً!
             </p>
           </div>
-          
-          <div className="flex items-center gap-3 self-start sm:self-center">
-            <span className="text-xs text-slate-400 font-bold">الحالة:</span>
-            <span className={`text-xs font-black px-2.5 py-1 rounded-full ${
-              detailReminderTime 
-                ? 'bg-green-500/10 text-green-600' 
-                : 'bg-amber-500/10 text-amber-600'
-            }`}>
-              {detailReminderTime ? 'مفعّل ✅' : 'معطّل 😴'}
-            </span>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <input
+              type="time"
+              value={detailReminderTime}
+              onChange={(e) => handleUpdateReminder(e.target.value)}
+              className="px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-gold text-brand-blue font-bold font-mono text-center text-sm"
+            />
+            {detailReminderTime && (
+              <button
+                type="button"
+                onClick={() => handleUpdateReminder('')}
+                className="text-xs font-bold text-rose-500 hover:text-rose-700 bg-rose-50 px-2.5 py-1.5 rounded-lg transition-all"
+              >
+                إلغاء المنبه
+              </button>
+            )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center pt-2">
-          {/* Inputs */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <div className="relative flex-grow max-w-xs">
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-                <Clock className="w-4 h-4" />
-              </div>
-              <input
-                type="time"
-                value={detailReminderTime}
-                onChange={(e) => handleUpdateReminder(e.target.value)}
-                className="w-full pl-3 pr-9 py-2.5 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-gold/50 focus:border-brand-gold text-brand-blue font-bold font-mono text-center"
-              />
-            </div>
-            
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-brand-gold/5 p-3.5 rounded-xl border border-brand-gold/20">
+          <span className="text-xs font-bold text-brand-blue">
+            {detailReminderTime ? `⏰ التذكير مفعّل يومياً في الساعة ${detailReminderTime}` : '😴 المنبه غير مفعّل حالياً (حدد وقتاً لتفعيله)'}
+          </span>
+
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => handleUpdateReminder('')}
-              disabled={!detailReminderTime}
-              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all ${
-                detailReminderTime 
-                  ? 'bg-red-50 text-red-600 hover:bg-red-100 cursor-pointer' 
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              onClick={handleTestNotification}
+              disabled={testNotificationState !== 'idle'}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all shadow-sm cursor-pointer ${
+                testNotificationState === 'idle'
+                  ? 'bg-brand-blue text-white hover:bg-brand-blue-light'
+                  : testNotificationState === 'requesting'
+                  ? 'bg-slate-200 text-slate-500 cursor-wait'
+                  : testNotificationState === 'countdown'
+                  ? 'bg-brand-gold text-brand-blue font-mono animate-pulse'
+                  : 'bg-green-500 text-white'
               }`}
             >
-              إلغاء المنبه 🔕
+              {testNotificationState === 'idle' && '🔔 تجربة التنبيه على جوالك'}
+              {testNotificationState === 'requesting' && 'جاري طلب الإذن...'}
+              {testNotificationState === 'countdown' && `إرسال خلال ${countdown} ثوانٍ...`}
+              {testNotificationState === 'sent' && '✅ تم إرسال التنبيه!'}
             </button>
-          </div>
 
-          {/* Test Live Notification Card */}
-          <div className="bg-brand-gold/5 border border-brand-gold/15 p-4 rounded-xl flex flex-col gap-3">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="space-y-1 text-right">
-                <span className="block text-xs font-black text-brand-blue">اختبر التنبيه على جوالك فوراً! 📱</span>
-                <span className="block text-[10px] text-gray-500 leading-normal">
-                  لتضمن أن التنبيهات تصل لهاتفك بشكل صحيح حتى مع إغلاق الشاشة، اضغط هنا لتجربة منبه حيّ فوري.
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleTestNotification}
-                disabled={testNotificationState !== 'idle'}
-                className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-black transition-all shadow-sm shrink-0 cursor-pointer ${
-                  testNotificationState === 'idle'
-                    ? 'bg-brand-blue text-white hover:bg-brand-blue-light'
-                    : testNotificationState === 'requesting'
-                    ? 'bg-slate-200 text-slate-500 cursor-wait'
-                    : testNotificationState === 'countdown'
-                    ? 'bg-brand-gold text-brand-blue font-mono animate-pulse'
-                    : 'bg-green-500 text-white'
-                }`}
-              >
-                {testNotificationState === 'idle' && '🔔 تجربة التنبيه الآن'}
-                {testNotificationState === 'requesting' && 'جاري طلب الإذن...'}
-                {testNotificationState === 'countdown' && `سيصلك التنبيه خلال ${countdown} ثوانٍ...`}
-                {testNotificationState === 'sent' && '✅ تم إرسال التنبيه!'}
-              </button>
-            </div>
-
-            {/* Guide Link Button */}
-            <div className="border-t border-brand-gold/10 pt-2.5 flex justify-start">
-              <button
-                type="button"
-                onClick={() => setIsGuideOpen(true)}
-                className="inline-flex items-center gap-1 text-[11px] font-black text-brand-blue/70 hover:text-brand-blue cursor-pointer bg-brand-blue/5 hover:bg-brand-blue/10 px-3 py-1.5 rounded-lg transition-all"
-              >
-                <HelpCircle className="w-3.5 h-3.5 text-brand-gold animate-pulse" />
-                <span>دليل وشرح تفعيل التنبيهات على الآيفون والجوال خطوة بخطوة 💡</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => setIsGuideOpen(true)}
+              className="text-xs font-bold text-brand-blue/80 hover:text-brand-blue bg-white border border-brand-blue/10 px-2.5 py-1.5 rounded-xl transition-all flex items-center gap-1"
+            >
+              <HelpCircle className="w-3.5 h-3.5 text-brand-gold" />
+              <span>دليل الخطوات</span>
+            </button>
           </div>
         </div>
       </div>
@@ -2322,7 +2307,37 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
         )}
       </AnimatePresence>
 
-      {/* Guide Modal */}
+      {/* AUTOMATIC STREAK CELEBRATION TOAST */}
+      <AnimatePresence>
+        {streakToast?.show && (
+          <div className="fixed inset-x-0 bottom-8 z-50 flex justify-center px-4 pointer-events-none">
+            <motion.div
+              initial={{ opacity: 0, y: 50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.9 }}
+              className="bg-gradient-to-r from-amber-500 via-brand-gold to-amber-600 text-brand-blue font-bold rounded-2xl px-6 py-4 shadow-2xl border-2 border-white/30 flex items-center gap-4 max-w-md text-right pointer-events-auto"
+            >
+              <div className="w-12 h-12 rounded-xl bg-brand-blue text-amber-400 flex items-center justify-center shrink-0 shadow-inner">
+                <Flame className="w-7 h-7 fill-current animate-bounce" />
+              </div>
+              <div className="space-y-0.5 flex-grow">
+                <span className="block text-sm font-black text-brand-blue">🔥 أسطورة! أتممت مذاكرة اليوم!</span>
+                <span className="block text-xs text-brand-blue/90">
+                  تم تسجيل الـ Streak وزيادته تلقائياً إلى <strong className="font-mono text-sm underline">{streakToast.count}</strong> {streakToast.count === 1 ? 'يوم' : 'أيام'} متتالية 🎓
+                </span>
+              </div>
+              <button 
+                onClick={() => setStreakToast(null)}
+                className="mr-auto text-brand-blue/80 hover:text-brand-blue text-xs cursor-pointer focus:outline-none font-bold"
+              >
+                إغلاق
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Notification Guide Modal */}
       <NotificationGuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
 
     </div>

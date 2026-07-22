@@ -86,9 +86,18 @@ export default function SchedulesList({ setPage, setActiveScheduleId }: Schedule
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 pt-1">
               {/* Streak */}
               <div className="flex items-center gap-2.5 justify-end bg-white/5 border border-white/10 px-4 py-2.5 rounded-2xl">
-                <span className="text-sm font-bold text-gray-200">يوم متتالي</span>
-                <span className="text-lg font-black text-brand-gold font-mono">{streak}</span>
-                <span className="text-xl">🔥</span>
+                <div className="text-right">
+                  <div className="flex items-center gap-1.5 justify-end">
+                    <span className="text-sm font-bold text-gray-200">يوم متتالي</span>
+                    <span className="text-lg font-black text-brand-gold font-mono">{streak}</span>
+                  </div>
+                  {profile?.bestStreak !== undefined && profile.bestStreak > 0 && (
+                    <div className="text-[10px] text-amber-300/90 font-semibold">
+                      🏆 الأعلى: {profile.bestStreak} يوم
+                    </div>
+                  )}
+                </div>
+                <span className="text-xl shrink-0">🔥</span>
               </div>
               
               {/* Exam Days */}

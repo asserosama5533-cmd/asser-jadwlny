@@ -12,7 +12,7 @@ import {
   getProfile, updateProfile, getSchedules, getDailyErrors, 
   deleteDailyError, addDailyError, getCompletionStats,
   isQuantCompleted, setQuantCompleted, isVerbalCompleted, setVerbalCompleted,
-  getTodayDateString, incrementStudyStreak, checkAndUpdateStreakOnLoad,
+  getTodayDateString, incrementStudyStreak, checkAndUpdateStreakOnLoad, checkAndAutoTriggerStreak,
   clearUserDataOnLogout, permanentlyDeleteLocalAccountFromVault
 } from '../utils/storage';
 
@@ -225,12 +225,25 @@ export default function ProfilePage({ session, setPage, setActiveScheduleId, set
     setTimeout(() => setErrSuccess(''), 2000);
   };
 
+  const [streakToast, setStreakToast] = useState<{ show: boolean; count: number } | null>(null);
+
+  const checkAutoStreak = () => {
+    if (!activeSchedule || !session?.id) return;
+    const res = checkAndAutoTriggerStreak(session.id, activeSchedule);
+    if (res.triggered) {
+      setProfile(getProfile(session.id));
+      setStreakToast({ show: true, count: res.streakCount });
+      setTimeout(() => setStreakToast(null), 5000);
+    }
+  };
+
   const handleToggleQuant = (bankNum: number) => {
     if (!activeSchedule) return;
     const current = !!completedQuants[bankNum];
     setQuantCompleted(bankNum, !current, activeSchedule.id);
     setCompletedQuants(prev => ({ ...prev, [bankNum]: !current }));
     setProgressTrigger(p => p + 1);
+    setTimeout(checkAutoStreak, 50);
   };
 
   const handleToggleVerbal = (secNum: number) => {
@@ -239,6 +252,7 @@ export default function ProfilePage({ session, setPage, setActiveScheduleId, set
     setVerbalCompleted(secNum, !current, activeSchedule.id);
     setCompletedVerbals(prev => ({ ...prev, [secNum]: !current }));
     setProgressTrigger(p => p + 1);
+    setTimeout(checkAutoStreak, 50);
   };
 
   const handleBulkToggleVerbalRange = (dayNum: number, sections: number[], completed: boolean) => {
@@ -263,8 +277,10 @@ export default function ProfilePage({ session, setPage, setActiveScheduleId, set
       return next;
     });
 
+    // Reset range selection and close form
     setShowRangeForm(prev => ({ ...prev, [dayNum]: false }));
     setProgressTrigger(p => p + 1);
+    setTimeout(checkAutoStreak, 50);
   };
 
   const getScheduleName = (schedId: string) => {
@@ -385,7 +401,7 @@ export default function ProfilePage({ session, setPage, setActiveScheduleId, set
       return;
     }
 
-    const updated = incrementStudyStreak(session.id);
+    const { profile: updated } = incrementStudyStreak(session.id);
     setProfile(updated);
     
     alert(`🔥 رائع يا بطل! تم تسجيل مذاكرتك لليوم بنجاح وزيادة الـ Streak إلى (${updated.streakCount}) يوم!\n\nاستمر في الحفاظ على تقدمك اليومي للوصول للـ 100٪ 🎓. سيتم توجيهك الآن إلى تفاصيل جدولك.`);
@@ -653,11 +669,18 @@ export default function ProfilePage({ session, setPage, setActiveScheduleId, set
             
             <div className="my-2">
               <span className="text-xs text-gray-500 font-bold block mb-0.5">السلسلة اليومية (Streak)</span>
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-3xl font-black text-brand-blue">
-                  <bdi dir="ltr" className="font-mono tabular-nums">{profile.streakCount || 0}</bdi>
-                </span>
-                <span className="text-xs text-gray-500 font-bold">يوم متتالي</span>
+              <div className="flex items-baseline justify-between gap-2 flex-wrap">
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-3xl font-black text-brand-blue">
+                    <bdi dir="ltr" className="font-mono tabular-nums">{profile.streakCount || 0}</bdi>
+                  </span>
+                  <span className="text-xs text-gray-500 font-bold">يوم متتالي</span>
+                </div>
+                {profile.bestStreak !== undefined && profile.bestStreak > 0 && (
+                  <div className="text-[11px] font-extrabold text-amber-700 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20">
+                    🏆 الأعلى: {profile.bestStreak} {profile.bestStreak === 1 ? 'يوم' : 'أيام'}
+                  </div>
+                )}
               </div>
             </div>
             
@@ -678,10 +701,10 @@ export default function ProfilePage({ session, setPage, setActiveScheduleId, set
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                 <span>
                   {isAlreadyDoneToday 
-                    ? 'أنهيت مذاكرة اليوم 👍' 
+                    ? 'تم تسجيل مذاكرة اليوم تلقائياً 🔥' 
                     : isTargetDayFullyCompleted 
-                      ? 'خلصت مذاكرتي اليوم! 🔥' 
-                      : 'اضغط هنا عند إتمام المذاكرة'}
+                      ? 'خلّصت مهامي! أضف الـ Streak 🔥' 
+                      : 'تلقائي: يتم الاحتساب عند إتمام مهام اليوم'}
                 </span>
               </button>
               
@@ -1624,6 +1647,36 @@ export default function ProfilePage({ session, setPage, setActiveScheduleId, set
           </form>
         )}
       </div>
+
+      {/* AUTOMATIC STREAK CELEBRATION TOAST */}
+      <AnimatePresence>
+        {streakToast?.show && (
+          <div className="fixed inset-x-0 bottom-8 z-50 flex justify-center px-4 pointer-events-none">
+            <motion.div
+              initial={{ opacity: 0, y: 50, scale: 0.9 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.9 }}
+              className="bg-gradient-to-r from-amber-500 via-brand-gold to-amber-600 text-brand-blue font-bold rounded-2xl px-6 py-4 shadow-2xl border-2 border-white/30 flex items-center gap-4 max-w-md text-right pointer-events-auto"
+            >
+              <div className="w-12 h-12 rounded-xl bg-brand-blue text-amber-400 flex items-center justify-center shrink-0 shadow-inner">
+                <Flame className="w-7 h-7 fill-current animate-bounce" />
+              </div>
+              <div className="space-y-0.5 flex-grow">
+                <span className="block text-sm font-black text-brand-blue">🔥 أسطورة! أتممت مذاكرة اليوم!</span>
+                <span className="block text-xs text-brand-blue/90">
+                  تم تسجيل الـ Streak وزيادته تلقائياً إلى <strong className="font-mono text-sm underline">{streakToast.count}</strong> {streakToast.count === 1 ? 'يوم' : 'أيام'} متتالية 🎓
+                </span>
+              </div>
+              <button 
+                onClick={() => setStreakToast(null)}
+                className="mr-auto text-brand-blue/80 hover:text-brand-blue text-xs cursor-pointer focus:outline-none font-bold"
+              >
+                إغلاق
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

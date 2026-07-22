@@ -108,7 +108,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
   };
 
   // Custom Ranges State
-  const [quantMode, setQuantMode] = useState<'all' | 'custom'>('all');
+  const [quantMode, setQuantMode] = useState<'all' | 'custom' | 'frequent'>('all');
   const [quantFrom, setQuantFrom] = useState<number | ''>(1);
   const [quantTo, setQuantTo] = useState<number | ''>(124);
 
@@ -212,14 +212,15 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
       useSeparateDurations && scheduleType === 'both',
       qDuration,
       vDuration,
-      verbalRestDays
+      verbalRestDays,
+      quantMode
     );
 
+    // Save
     if (studyReminderTime) {
       newSchedule.studyReminderTime = studyReminderTime;
     }
 
-    // Save
     saveSchedule(newSchedule);
 
     // Synchronize the updated reminder list with the server-side Web Push subscription
@@ -481,12 +482,19 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
               {/* Quant Selection Block */}
               {(scheduleType === 'both' || scheduleType === 'quant') && (
                 <div className="space-y-3 p-4 rounded-xl bg-slate-50/50 border border-slate-100">
-                  <span className="block text-sm font-bold text-brand-blue">بنوك الكمي</span>
-                  <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <span className="block text-sm font-bold text-brand-blue">بنوك الكمي</span>
+                    {quantMode === 'frequent' && (
+                      <span className="text-[10px] font-black text-amber-800 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/20">
+                        🔥 62 بنك مختار
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 bg-gray-100 p-1 rounded-xl">
                     <button
                       type="button"
                       onClick={() => setQuantMode('all')}
-                      className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                         quantMode === 'all'
                           ? 'bg-brand-blue text-white shadow-md'
                           : 'text-gray-600 hover:text-brand-blue'
@@ -496,8 +504,19 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                     </button>
                     <button
                       type="button"
+                      onClick={() => setQuantMode('frequent')}
+                      className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
+                        quantMode === 'frequent'
+                          ? 'bg-amber-500 text-brand-blue shadow-md font-black'
+                          : 'text-amber-800 hover:text-brand-blue font-bold'
+                      }`}
+                    >
+                      🔥 الأكثر تكراراً
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setQuantMode('custom')}
-                      className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                         quantMode === 'custom'
                           ? 'bg-brand-blue text-white shadow-md'
                           : 'text-gray-600 hover:text-brand-blue'
@@ -506,6 +525,49 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                       نطاق مخصص 🎯
                     </button>
                   </div>
+
+                  {quantMode === 'frequent' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="p-3.5 rounded-xl bg-amber-50/80 border border-brand-gold/30 text-right space-y-2 text-xs text-brand-blue mt-2"
+                    >
+                      <div className="flex items-center justify-between border-b border-brand-gold/20 pb-1.5">
+                        <div className="flex items-center gap-1.5 font-black text-amber-900">
+                          <Sparkles className="w-3.5 h-3.5 text-brand-gold fill-current" />
+                          <span>بنوك الكمي الأكثر تكراراً بالمحوسب:</span>
+                        </div>
+                        <span className="bg-brand-gold text-brand-blue px-2 py-0.5 rounded-md font-mono font-black text-[11px]">
+                          إجمالي 62 بنك ✅
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 text-[11px] font-bold text-gray-700 leading-relaxed">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0"></span>
+                          <span>• البنوك من 1 إلى 18</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0"></span>
+                          <span>• البنوك من 20 إلى 22</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0"></span>
+                          <span>• البنوك من 24 إلى 29</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0"></span>
+                          <span>• البنوك من 102 إلى 124</span>
+                        </div>
+                        <div className="flex items-start gap-1.5 text-amber-900 font-extrabold bg-white/70 p-2 rounded-lg border border-brand-gold/20 mt-1">
+                          <span className="shrink-0 text-amber-700">• بنوك منفردة:</span>
+                          <span className="font-mono dir-ltr text-amber-900 font-black">
+                            50, 57, 58, 68, 74, 76, 82, 86, 90, 93, 96, 98
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
 
                   {quantMode === 'custom' && (
                     <motion.div
@@ -682,7 +744,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
               <span>ضبط منبه وتذكير المذاكرة اليومي ⏰</span>
             </label>
             <p className="text-xs text-gray-500 leading-relaxed">
-              حدد الوقت المفضل لمذاكرتك، وسيقوم الموقع بإرسال تنبيه على جهازك/هاتفك لتذكيرك ببدء الحصة اليومية حتى لو كنت خارج المتصفح! 📱
+              حدد الوقت المفضل لمذاكرتك، وسيقوم الموقع بإرسال تنبيه على جهازك/هاتفك (الأندرويد والآيفون) لتذكيرك ببدء الحصة اليومية حتى لو كنت خارج المتصفح! 📱
             </p>
             <div className="flex flex-col sm:flex-row items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
               <input
@@ -702,7 +764,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                 <div className="space-y-1">
                   <span className="block text-xs font-black text-brand-blue">هل تود اختبار التنبيهات على هاتفك؟ 🤔</span>
                   <span className="block text-[11px] text-gray-500">
-                    اضغط على الزر الجانبي، وسيصلك تنبيه حقيقي على شاشة هاتفك/جهازك لتتأكد من عمل الميزة بشكل ممتاز!
+                    اضغط على الزر الجانبي، وسيصلك تنبيه حقيقي على شاشة هاتفك (أندرويد / آيفون) لتتأكد من عمل الميزة بشكل ممتاز!
                   </span>
                 </div>
                 <button
@@ -734,7 +796,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                   className="inline-flex items-center gap-1 text-[11px] font-black text-brand-blue/70 hover:text-brand-blue cursor-pointer bg-brand-blue/5 hover:bg-brand-blue/10 px-3 py-1.5 rounded-lg transition-all"
                 >
                   <HelpCircle className="w-3.5 h-3.5 text-brand-gold animate-pulse" />
-                  <span>دليل وشرح تفعيل التنبيهات على الآيفون والجوال خطوة بخطوة 💡</span>
+                  <span>دليل وشرح تفعيل التنبيهات للأندرويد والآيفون خطوة بخطوة 💡</span>
                 </button>
               </div>
             </div>
