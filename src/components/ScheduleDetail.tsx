@@ -12,7 +12,6 @@ import {
   addDailyError, getDailyErrors, deleteDailyError, checkAndAutoTriggerStreak
 } from '../utils/storage';
 import SchedulePoster from './SchedulePoster';
-import NotificationGuideModal from './NotificationGuideModal';
 
 interface ScheduleDetailProps {
   scheduleId: string;
@@ -23,12 +22,6 @@ interface ScheduleDetailProps {
 export default function ScheduleDetail({ scheduleId, setPage, session }: ScheduleDetailProps) {
   const [schedule, setSchedule] = useState<Schedule | null>(null);
 
-  // Study reminder states in detail page
-  const [detailReminderTime, setDetailReminderTime] = useState<string>('');
-  const [testNotificationState, setTestNotificationState] = useState<'idle' | 'requesting' | 'countdown' | 'sent'>('idle');
-  const [countdown, setCountdown] = useState<number>(3);
-  const [isGuideOpen, setIsGuideOpen] = useState(false);
-
   const [streakToast, setStreakToast] = useState<{ show: boolean; count: number } | null>(null);
 
   const checkAutoStreak = () => {
@@ -37,97 +30,6 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
     if (res.triggered) {
       setStreakToast({ show: true, count: res.streakCount });
       setTimeout(() => setStreakToast(null), 5000);
-    }
-  };
-
-  const handleTestNotification = async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      setIsGuideOpen(true);
-      return;
-    }
-
-    setTestNotificationState('requesting');
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        setIsGuideOpen(true);
-        setTestNotificationState('idle');
-        return;
-      }
-
-      setTestNotificationState('countdown');
-      setCountdown(3);
-      
-      const timer = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            setTestNotificationState('sent');
-            
-            // Trigger actual service worker or standard notification
-            const title = '📖 حان وقت المذاكرة والتميز! 🚀';
-            const body = schedule 
-              ? `يا بطل، حان وقت مذاكرة جدولك "${schedule.name}". همتك عالية والـ 100% بانتظارك! 💪✨`
-              : 'يا بطل، حان وقت مذاكرة جدولك اليومي. همتك عالية والـ 100% بانتظارك! 💪✨';
-            
-            // Register server-side push subscription so they get background notifications
-            import('../utils/pushHelper').then(({ syncPushSubscription }) => {
-              syncPushSubscription(undefined, true);
-            });
-
-            if ('serviceWorker' in navigator) {
-              navigator.serviceWorker.ready.then(registration => {
-                registration.showNotification(title, {
-                  body: body,
-                  icon: '/favicon.ico',
-                  badge: '/favicon.ico',
-                  vibrate: [200, 100, 200]
-                } as any);
-              }).catch(() => {
-                new Notification(title, { body });
-              });
-            } else {
-              new Notification(title, { body });
-            }
-
-            // Reset back to idle after 3 seconds
-            setTimeout(() => {
-              setTestNotificationState('idle');
-            }, 3000);
-
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } catch (err) {
-      console.error(err);
-      setTestNotificationState('idle');
-    }
-  };
-
-  const handleUpdateReminder = (time: string) => {
-    setDetailReminderTime(time);
-    if (!schedule) return;
-
-    const updated = {
-      ...schedule,
-      studyReminderTime: time || undefined
-    };
-
-    setSchedule(updated);
-    saveSchedule(updated);
-
-    // Synchronize the updated reminder list with the server-side Web Push subscription
-    import('../utils/pushHelper').then(({ syncPushSubscription }) => {
-      syncPushSubscription(undefined, time ? true : false);
-    });
-
-    // Request permissions if enabling
-    if (time && typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission();
-      }
     }
   };
 
@@ -190,7 +92,6 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
     const found = schedules.find(s => s.id === scheduleId);
     if (found) {
       setSchedule(found);
-      setDetailReminderTime(found.studyReminderTime || '');
       setEditName(found.name);
       setEditStartDate(found.startDate);
       setEditScheduleType(found.scheduleType || 'both');
@@ -1099,76 +1000,6 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
             </div>
           </div>
 
-        </div>
-      </div>
-
-      {/* Reminder & Alarm Card */}
-      <div className="bg-white border border-brand-blue/5 rounded-2xl shadow-sm p-5 mb-8 text-right space-y-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-100 pb-4">
-          <div className="space-y-1">
-            <h3 className="text-sm font-black text-brand-blue flex items-center gap-2">
-              <Bell className="w-4 h-4 text-brand-gold animate-swing" />
-              <span>منبه وتذكير المذاكرة اليومي لهذا الجدول ⏰</span>
-            </h3>
-            <p className="text-xs text-gray-500">
-              تلقّ إشعارات تلقائية على هاتفك (أندرويد وآيفون) لتذكيرك بموعد المذاكرة المحدد حتّى لو كان الموقع مغلقاً!
-            </p>
-          </div>
-
-          <div className="flex items-center gap-3 shrink-0">
-            <input
-              type="time"
-              value={detailReminderTime}
-              onChange={(e) => handleUpdateReminder(e.target.value)}
-              className="px-3 py-1.5 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-gold text-brand-blue font-bold font-mono text-center text-sm"
-            />
-            {detailReminderTime && (
-              <button
-                type="button"
-                onClick={() => handleUpdateReminder('')}
-                className="text-xs font-bold text-rose-500 hover:text-rose-700 bg-rose-50 px-2.5 py-1.5 rounded-lg transition-all"
-              >
-                إلغاء المنبه
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-brand-gold/5 p-3.5 rounded-xl border border-brand-gold/20">
-          <span className="text-xs font-bold text-brand-blue">
-            {detailReminderTime ? `⏰ التذكير مفعّل يومياً في الساعة ${detailReminderTime}` : '😴 المنبه غير مفعّل حالياً (حدد وقتاً لتفعيله)'}
-          </span>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleTestNotification}
-              disabled={testNotificationState !== 'idle'}
-              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all shadow-sm cursor-pointer ${
-                testNotificationState === 'idle'
-                  ? 'bg-brand-blue text-white hover:bg-brand-blue-light'
-                  : testNotificationState === 'requesting'
-                  ? 'bg-slate-200 text-slate-500 cursor-wait'
-                  : testNotificationState === 'countdown'
-                  ? 'bg-brand-gold text-brand-blue font-mono animate-pulse'
-                  : 'bg-green-500 text-white'
-              }`}
-            >
-              {testNotificationState === 'idle' && '🔔 تجربة التنبيه على جوالك'}
-              {testNotificationState === 'requesting' && 'جاري طلب الإذن...'}
-              {testNotificationState === 'countdown' && `إرسال خلال ${countdown} ثوانٍ...`}
-              {testNotificationState === 'sent' && '✅ تم إرسال التنبيه!'}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsGuideOpen(true)}
-              className="text-xs font-bold text-brand-blue/80 hover:text-brand-blue bg-white border border-brand-blue/10 px-2.5 py-1.5 rounded-xl transition-all flex items-center gap-1"
-            >
-              <HelpCircle className="w-3.5 h-3.5 text-brand-gold" />
-              <span>دليل الخطوات</span>
-            </button>
-          </div>
         </div>
       </div>
 
@@ -2336,9 +2167,6 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
           </div>
         )}
       </AnimatePresence>
-
-      {/* Notification Guide Modal */}
-      <NotificationGuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
 
     </div>
   );

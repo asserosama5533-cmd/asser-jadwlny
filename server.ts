@@ -130,107 +130,6 @@ async function startServer() {
     });
   };
 
-  // Initialize VAPID Keys for Web Push Notifications
-  const VAPID_FILE = path.join(DATA_DIR, "vapid.json");
-  let vapidKeys: { publicKey: string; privateKey: string };
-
-  if (fs.existsSync(VAPID_FILE)) {
-    try {
-      vapidKeys = JSON.parse(fs.readFileSync(VAPID_FILE, "utf-8"));
-    } catch (e) {
-      vapidKeys = webpush.generateVAPIDKeys();
-      fs.writeFileSync(VAPID_FILE, JSON.stringify(vapidKeys, null, 2), "utf-8");
-    }
-  } else {
-    vapidKeys = webpush.generateVAPIDKeys();
-    fs.writeFileSync(VAPID_FILE, JSON.stringify(vapidKeys, null, 2), "utf-8");
-  }
-
-  webpush.setVapidDetails(
-    "mailto:support@jadwalni.com",
-    vapidKeys.publicKey,
-    vapidKeys.privateKey
-  );
-
-  const SUBSCRIPTIONS_FILE = path.join(DATA_DIR, "push_subscriptions.json");
-
-  // In-memory cache for ultra-fast, zero-delay lookups
-  let subscriptionsCache: any[] = [];
-  let isCacheInitialized = false;
-
-  function loadSubscriptionsCache() {
-    if (fs.existsSync(SUBSCRIPTIONS_FILE)) {
-      try {
-        const raw = JSON.parse(fs.readFileSync(SUBSCRIPTIONS_FILE, "utf-8"));
-        if (Array.isArray(raw)) {
-          const unique: any[] = [];
-          const seenEndpoints = new Set<string>();
-          const seenKeys = new Set<string>();
-          for (const s of raw) {
-            if (s) {
-              const endpoint = s.endpoint || (s.subscription && s.subscription.endpoint);
-              const p256dh = s.subscription && s.subscription.keys && s.subscription.keys.p256dh;
-              
-              if (endpoint && !seenEndpoints.has(endpoint)) {
-                if (p256dh) {
-                  if (seenKeys.has(p256dh)) {
-                    continue; // Skip duplicate browser sessions
-                  }
-                  seenKeys.add(p256dh);
-                }
-                seenEndpoints.add(endpoint);
-                unique.push(s);
-              }
-            }
-          }
-          subscriptionsCache = unique;
-        } else {
-          subscriptionsCache = [];
-        }
-      } catch (e) {
-        subscriptionsCache = [];
-      }
-    } else {
-      subscriptionsCache = [];
-    }
-    isCacheInitialized = true;
-  }
-
-  function getSubscriptions(): any[] {
-    if (!isCacheInitialized) {
-      loadSubscriptionsCache();
-    }
-    return subscriptionsCache;
-  }
-
-  function saveSubscriptions(subs: any[]) {
-    // Deduplicate on save to guarantee absolute uniqueness
-    const unique: any[] = [];
-    const seenEndpoints = new Set<string>();
-    const seenKeys = new Set<string>();
-    for (const s of subs) {
-      if (s) {
-        const endpoint = s.endpoint || (s.subscription && s.subscription.endpoint);
-        const p256dh = s.subscription && s.subscription.keys && s.subscription.keys.p256dh;
-        
-        if (endpoint && !seenEndpoints.has(endpoint)) {
-          if (p256dh) {
-            if (seenKeys.has(p256dh)) {
-              continue;
-            }
-            seenKeys.add(p256dh);
-          }
-          seenEndpoints.add(endpoint);
-          unique.push(s);
-        }
-      }
-    }
-
-    subscriptionsCache = unique;
-    isCacheInitialized = true;
-    fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(unique, null, 2), "utf-8");
-  }
-
   // Helper to get safe filename for email
   function getFilePathForEmail(email: string): string {
     const safeEmail = email.toLowerCase().replace(/[^a-z0-9@.]/g, "_");
@@ -700,211 +599,160 @@ async function startServer() {
     });
   });
 
-  // Web Push VAPID Public Key API
-  app.get("/api/push/vapid-public-key", (req, res) => {
-    return res.json({ publicKey: vapidKeys.publicKey });
-  });
+  // Persistent Analytics Data
+  const ANALYTICS_FILE = path.join(DATA_DIR, "analytics.json");
+  let analyticsData = {
+    totalVisits: 0,
+    totalSchedulesCreated: 0,
+    dailyVisits: {} as Record<string, number>
+  };
 
-  // Subscribe to push notifications API
-  app.post("/api/push/subscribe", (req, res) => {
-    const { subscription, timezone, email, reminderTimes } = req.body;
-    if (!subscription || !subscription.endpoint) {
-      return res.status(400).json({ error: "Subscription endpoint is required" });
+  if (fs.existsSync(ANALYTICS_FILE)) {
+    try {
+      analyticsData = JSON.parse(fs.readFileSync(ANALYTICS_FILE, "utf-8"));
+    } catch (e) {
+      console.error("Failed to parse analytics.json");
+    }
+  }
+
+  function saveAnalytics() {
+    try {
+      fs.writeFileSync(ANALYTICS_FILE, JSON.stringify(analyticsData, null, 2), "utf-8");
+    } catch (e) {
+      console.error("Failed to save analytics.json:", e);
+    }
+  }
+
+  // Live active sessions map (in-memory)
+  const activeSessions = new Map<string, { lastPing: number; clientId: string; userAgent?: string; email?: string; firstSeen: number }>();
+
+  // Periodically clear stale sessions older than 90 seconds
+  setInterval(() => {
+    const now = Date.now();
+    for (const [id, session] of activeSessions.entries()) {
+      if (now - session.lastPing > 90000) {
+        activeSessions.delete(id);
+      }
+    }
+  }, 20000);
+
+  // API Route: Client heartbeat ping for live analytics & visitor counter
+  app.post("/api/analytics/ping", (req, res) => {
+    const { clientId, userAgent, email } = req.body;
+    if (!clientId) {
+      return res.status(400).json({ error: "clientId is required" });
     }
 
-    const subs = getSubscriptions();
-    const index = subs.findIndex((s: any) => s.endpoint === subscription.endpoint);
+    const now = Date.now();
+    const isNewSession = !activeSessions.has(clientId);
 
-    const newSub = {
-      endpoint: subscription.endpoint,
-      subscription,
-      timezone: timezone || "Asia/Riyadh",
-      email: email || null,
-      reminderTimes: reminderTimes || [],
-      updatedAt: new Date().toISOString()
-    };
-
-    if (index > -1) {
-      subs[index] = { ...subs[index], ...newSub };
-    } else {
-      subs.push(newSub);
+    if (isNewSession) {
+      analyticsData.totalVisits = (analyticsData.totalVisits || 0) + 1;
+      const today = new Date().toISOString().split("T")[0];
+      analyticsData.dailyVisits = analyticsData.dailyVisits || {};
+      analyticsData.dailyVisits[today] = (analyticsData.dailyVisits[today] || 0) + 1;
+      saveAnalytics();
     }
 
-    saveSubscriptions(subs);
-    return res.json({ success: true });
-  });
+    activeSessions.set(clientId, {
+      lastPing: now,
+      clientId,
+      userAgent: userAgent || (req.headers["user-agent"] as string) || "مصفح غير محدد",
+      email: email || activeSessions.get(clientId)?.email,
+      firstSeen: activeSessions.get(clientId)?.firstSeen || now
+    });
 
-  // Unsubscribe from push notifications API
-  app.post("/api/push/unsubscribe", (req, res) => {
-    const { endpoint } = req.body;
-    if (!endpoint) {
-      return res.status(400).json({ error: "Endpoint is required" });
+    let activeNow = 0;
+    for (const s of activeSessions.values()) {
+      if (now - s.lastPing <= 90000) activeNow++;
     }
 
-    const subs = getSubscriptions();
-    const filtered = subs.filter((s: any) => s.endpoint !== endpoint);
-    saveSubscriptions(filtered);
-    return res.json({ success: true });
+    return res.json({
+      success: true,
+      activeUsers: activeNow,
+      totalVisits: analyticsData.totalVisits
+    });
   });
 
-  // Service Worker route for real-time mobile push and background study notifications
-  app.get("/sw.js", (req, res) => {
-    res.setHeader("Content-Type", "application/javascript");
-    res.send(`
-      self.addEventListener('install', (event) => {
-        self.skipWaiting();
-      });
-
-      self.addEventListener('activate', (event) => {
-        event.waitUntil(self.clients.claim());
-      });
-
-      // Listen for the push event (sent from server when tab is closed)
-      self.addEventListener('push', (event) => {
-        let data = {};
-        if (event.data) {
-          try {
-            data = event.data.json();
-          } catch (e) {
-            data = { title: '📖 حان وقت المذاكرة والتميز! 🚀', body: event.data.text() };
-          }
-        }
-        
-        const title = data.title || '📖 حان وقت المذاكرة والتميز! 🚀';
-        const options = {
-          body: data.body || 'يا بطل، حان وقت مذاكرة جدولك اليومي. همتك عالية والـ 100% بانتظارك! 💪✨',
-          icon: data.icon || '/favicon.ico',
-          badge: data.badge || '/favicon.ico',
-          vibrate: [200, 100, 200],
-          data: {
-            url: data.url || '/'
-          }
-        };
-        
-        event.waitUntil(
-          self.registration.showNotification(title, options)
-        );
-      });
-
-      // Handle notification click to open or focus the app
-      self.addEventListener('notificationclick', (event) => {
-        event.notification.close();
-        const urlToOpen = event.notification.data ? event.notification.data.url : '/';
-        
-        event.waitUntil(
-          self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-            for (const client of clientList) {
-              if (client.url.includes(urlToOpen) && 'focus' in client) {
-                return client.focus();
-              }
-            }
-            if (self.clients.openWindow) {
-              return self.clients.openWindow(urlToOpen);
-            }
-          })
-        );
-      });
-    `);
+  // API Route: Increment total schedules created
+  app.post("/api/analytics/schedule-created", (req, res) => {
+    analyticsData.totalSchedulesCreated = (analyticsData.totalSchedulesCreated || 0) + 1;
+    saveAnalytics();
+    return res.json({ success: true, totalSchedulesCreated: analyticsData.totalSchedulesCreated });
   });
 
-  // Server background task checking every 5 seconds to send Web Push notifications perfectly on time
-  setInterval(async () => {
-    const subs = getSubscriptions();
-    if (subs.length === 0) return;
-
-    const now = new Date();
-    let hasChanges = false;
+  // API Route: Admin Analytics Stats (Visible strictly to Admin)
+  app.get("/api/analytics/admin-stats", (req, res) => {
+    const { adminKey, email } = req.query;
     
-    for (const sub of subs) {
-      try {
-        // 1. Get the current time in the user's timezone formatted as "HH:mm" robustly
-        let localTimeStr = "";
-        try {
-          const parts = new Intl.DateTimeFormat("en-US", {
-            timeZone: sub.timezone || "Asia/Riyadh",
-            hour: "numeric",
-            minute: "numeric",
-            hour12: false
-          }).formatToParts(now);
+    const reqEmail = (email as string || "").toLowerCase().trim();
+    const isOwner = reqEmail === "asserosama5533@gmail.com";
+    const isValidKey = adminKey === "asser70" || adminKey === "7070" || adminKey === "asser";
 
-          let hour = "";
-          let minute = "";
-          for (const part of parts) {
-            if (part.type === "hour") hour = part.value;
-            if (part.type === "minute") minute = part.value;
-          }
+    if (!isOwner && !isValidKey) {
+      return res.status(403).json({ error: "غير مصرح لك بالوصول إلى لوحة إحصائيات الأدمن" });
+    }
 
-          // Handle Node platform discrepancies (some return '24' for midnight)
-          if (hour === "24") hour = "00";
-          if (hour.length === 1) hour = "0" + hour;
-          if (minute.length === 1) minute = "0" + minute;
-          
-          localTimeStr = `${hour}:${minute}`;
-        } catch (e) {
-          // If timezone is invalid, skip
-          continue;
-        }
-
-        // 2. Gather active reminder times for this subscription (either from email or cached)
-        let activeReminderTimes: string[] = sub.reminderTimes || [];
-
-        // If subscription has an email, sync directly with their database file on the server
-        if (sub.email) {
-          const filePath = getFilePathForEmail(sub.email);
-          if (fs.existsSync(filePath)) {
-            try {
-              const content = fs.readFileSync(filePath, "utf-8");
-              const parsed = JSON.parse(content);
-              if (parsed && Array.isArray(parsed.schedules)) {
-                activeReminderTimes = parsed.schedules
-                  .map((s: any) => s.studyReminderTime)
-                  .filter((t: any) => typeof t === "string" && t.trim() !== "");
-              }
-            } catch (err) {
-              // Fallback to cached reminderTimes
-            }
-          }
-        }
-
-        // 3. Trigger push notification if localTimeStr is in activeReminderTimes list
-        if (activeReminderTimes.includes(localTimeStr)) {
-          // Prevent multiple notifications within the same minute
-          const minuteKey = `${localTimeStr}_${now.getUTCDay()}_${now.getUTCMonth()}_${now.getUTCDate()}`;
-          if (sub.lastNotifiedMinute === minuteKey) {
-            continue;
-          }
-
-          sub.lastNotifiedMinute = minuteKey;
-          hasChanges = true;
-
-          const payload = JSON.stringify({
-            title: "📖 حان وقت المذاكرة والتميز! 🚀",
-            body: "يا بطل، حان وقت مذاكرة جدولك اليومي في تطبيق جدولني. همتك عالية والـ 100% بانتظارك! 💪✨",
-            icon: "/favicon.ico",
-            badge: "/favicon.ico",
-            url: "/"
-          });
-
-          webpush.sendNotification(sub.subscription, payload)
-            .catch(err => {
-              console.error("Failed to send push to endpoint:", sub.endpoint, err.statusCode);
-              if (err.statusCode === 410 || err.statusCode === 404) {
-                sub.shouldRemove = true; // Mark expired subscription for removal
-                hasChanges = true;
-              }
-            });
-        }
-      } catch (err) {
-        console.error("Error in sub processing:", err);
+    const now = Date.now();
+    const activeSessionsList: any[] = [];
+    for (const s of activeSessions.values()) {
+      if (now - s.lastPing <= 90000) {
+        activeSessionsList.push({
+          clientId: s.clientId.slice(0, 8),
+          email: s.email || "زائر (غير مسجل)",
+          userAgent: s.userAgent,
+          onlineForMinutes: Math.max(1, Math.round((now - s.firstSeen) / 60000)),
+          lastActiveSecondsAgo: Math.round((now - s.lastPing) / 1000)
+        });
       }
     }
 
-    // Clean up expired subscriptions or save state changes (like lastNotifiedMinute)
-    const activeSubs = subs.filter(sub => !sub.shouldRemove);
-    if (activeSubs.length !== subs.length || hasChanges) {
-      saveSubscriptions(activeSubs);
+    // Read total registered users from data/users.json
+    const usersFilePath = path.join(DATA_DIR, "users.json");
+    let registeredUsers: any[] = [];
+    if (fs.existsSync(usersFilePath)) {
+      try {
+        const rawUsers = JSON.parse(fs.readFileSync(usersFilePath, "utf-8"));
+        registeredUsers = rawUsers.map((u: any) => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          createdAt: u.createdAt
+        }));
+      } catch (e) {
+        registeredUsers = [];
+      }
     }
-  }, 3000); // Check every 3 seconds to ensure timeliness without delays
+
+    // Read user files to count total schedules created
+    let userFilesSchedulesCount = 0;
+    try {
+      const files = fs.readdirSync(DATA_DIR);
+      for (const f of files) {
+        if (f.startsWith("user_") && f.endsWith(".json")) {
+          try {
+            const content = JSON.parse(fs.readFileSync(path.join(DATA_DIR, f), "utf-8"));
+            if (content && Array.isArray(content.schedules)) {
+              userFilesSchedulesCount += content.schedules.length;
+            }
+          } catch (e) {}
+        }
+      }
+    } catch (e) {}
+
+    const totalSchedules = Math.max(analyticsData.totalSchedulesCreated || 0, userFilesSchedulesCount);
+
+    return res.json({
+      success: true,
+      activeNow: activeSessionsList.length,
+      totalVisits: analyticsData.totalVisits || 0,
+      totalUsers: registeredUsers.length,
+      totalSchedules,
+      registeredUsers,
+      activeSessionsList,
+      dailyVisits: analyticsData.dailyVisits || {}
+    });
+  }); // Check every 3 seconds to ensure timeliness without delays
 
   // Vite middleware setup for assets and SPA rendering
   if (process.env.NODE_ENV !== "production") {

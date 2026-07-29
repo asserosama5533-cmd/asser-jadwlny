@@ -11,7 +11,6 @@ import Auth from './components/Auth';
 import ProfilePage from './components/ProfilePage';
 import ContactPage from './components/ContactPage';
 import { getSession } from './utils/storage';
-import { syncPushSubscription } from './utils/pushHelper';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('landing');
@@ -30,73 +29,32 @@ export default function App() {
     }
   }, []);
 
-  // Register Service Worker for robust mobile notification support
+  // Client Analytics Ping (Tracks total site visitors & live active users for Admin)
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js')
-        .then(reg => {
-          console.log('Service Worker registered successfully with scope:', reg.scope);
-          // Silently synchronize subscription if permission was already granted
-          syncPushSubscription();
-        })
-        .catch(err => {
-          console.error('Service Worker registration failed:', err);
-        });
+    let clientId = localStorage.getItem('jadwalni_client_id');
+    if (!clientId) {
+      clientId = 'c_' + Math.random().toString(36).substring(2, 11) + Date.now().toString(36);
+      localStorage.setItem('jadwalni_client_id', clientId);
     }
-  }, []);
 
-  // Study Reminder Notification background check (Client-side fallback)
-  useEffect(() => {
-    if (typeof window === 'undefined' || !('Notification' in window)) return;
-
-    let lastNotifiedTime = '';
-
-    const showLocalNotification = (title: string, body: string) => {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.ready.then(registration => {
-          registration.showNotification(title, {
-            body: body,
-            icon: '/favicon.ico',
-            badge: '/favicon.ico',
-            vibrate: [200, 100, 200]
-          } as any);
-        }).catch(() => {
-          new Notification(title, { body });
-        });
-      } else {
-        new Notification(title, { body });
-      }
+    const sendPing = () => {
+      try {
+        fetch('/api/analytics/ping', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            clientId,
+            email: session?.email || null,
+            userAgent: navigator.userAgent
+          })
+        }).catch(() => {});
+      } catch (e) {}
     };
 
-    const checkReminder = () => {
-      const now = new Date();
-      const currentHours = String(now.getHours()).padStart(2, '0');
-      const currentMinutes = String(now.getMinutes()).padStart(2, '0');
-      const currentTimeString = `${currentHours}:${currentMinutes}`;
-
-      if (currentTimeString === lastNotifiedTime) return;
-
-      import('./utils/storage').then(({ getSchedules }) => {
-        const schedules = getSchedules();
-        const matchingSchedule = schedules.find(s => s.studyReminderTime === currentTimeString);
-
-        if (matchingSchedule) {
-          lastNotifiedTime = currentTimeString;
-
-          if (Notification.permission === 'granted') {
-            showLocalNotification(
-              '📖 حان وقت المذاكرة والتميز! 🚀',
-              `يا بطل، حان وقت مذاكرة جدولك "${matchingSchedule.name || 'القدرات'}". همتك عالية والـ 100% بانتظارك! 💪✨`
-            );
-          }
-        }
-      });
-    };
-
-    checkReminder();
-    const intervalId = setInterval(checkReminder, 25000);
-    return () => clearInterval(intervalId);
-  }, []);
+    sendPing();
+    const interval = setInterval(sendPing, 30000);
+    return () => clearInterval(interval);
+  }, [session]);
 
   // Sync hash with current page and activeScheduleId with strict auth check
   useEffect(() => {

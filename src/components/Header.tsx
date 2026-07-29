@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, X, LogOut, User, Calendar, MessageSquare, PlusCircle, LayoutDashboard, Bell, Sun, Moon } from 'lucide-react';
+import { Menu, X, LogOut, User, Calendar, MessageSquare, PlusCircle, LayoutDashboard, Bell, Sun, Moon, ShieldCheck, BarChart2 } from 'lucide-react';
 import { Page, Profile } from '../types';
 import { getSession, saveSession, clearUserDataOnLogout, getProfile } from '../utils/storage';
 import Logo from './Logo';
+import AdminAnalyticsModal from './AdminAnalyticsModal';
 
 interface HeaderProps {
   currentPage: Page;
@@ -19,9 +20,10 @@ export default function Header({ currentPage, setPage, session, setSession }: He
   const [unreadCount, setUnreadCount] = useState(0);
   const [profile, setProfile] = useState<Profile | null>(null);
 
-  // Admin notification states
+  // Admin notification & Analytics states
   const [isAdmin, setIsAdmin] = useState(false);
   const [showAdminForm, setShowAdminForm] = useState(false);
+  const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [adminTitle, setAdminTitle] = useState('');
   const [adminText, setAdminText] = useState('');
   const [isPublishing, setIsPublishing] = useState(false);
@@ -215,6 +217,19 @@ export default function Header({ currentPage, setPage, session, setSession }: He
             >
               {isDarkMode ? <Sun className="w-5.5 h-5.5 text-brand-gold" /> : <Moon className="w-5.5 h-5.5" />}
             </button>
+
+            {/* Admin Analytics Button (Visible for Admin or when clicked) */}
+            {isAdmin && (
+              <button
+                id="header-admin-analytics-desktop"
+                onClick={() => setShowAnalyticsModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-brand-gold/20 text-brand-gold border border-brand-gold/30 hover:bg-brand-gold/30 transition-all cursor-pointer shadow-xs"
+                title="إحصائيات المنصة للأدمن"
+              >
+                <BarChart2 className="w-4 h-4 text-brand-gold" />
+                <span>إحصائيات الأدمن 📊</span>
+              </button>
+            )}
 
             {/* Notification Bell with Badge */}
             <div className="relative">
@@ -594,6 +609,20 @@ export default function Header({ currentPage, setPage, session, setSession }: He
                 </button>
               )}
 
+              {isAdmin && (
+                <button
+                  id="mobile-admin-analytics-button"
+                  onClick={() => {
+                    setShowAnalyticsModal(true);
+                    setIsOpen(false);
+                  }}
+                  className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-base font-bold text-brand-gold bg-brand-gold/15 border border-brand-gold/30 hover:bg-brand-gold/25 transition-all mt-2"
+                >
+                  <BarChart2 className="w-5 h-5 text-brand-gold" />
+                  <span>إحصائيات الأدمن 📊</span>
+                </button>
+              )}
+
               <div className="pt-4 text-center border-t border-brand-gold/10 mt-4">
                 <span className="text-base font-black text-brand-gold tracking-widest block select-none">
                   آسر أسامة 🎓
@@ -603,6 +632,13 @@ export default function Header({ currentPage, setPage, session, setSession }: He
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Admin Analytics Modal */}
+      <AdminAnalyticsModal
+        isOpen={showAnalyticsModal}
+        onClose={() => setShowAnalyticsModal(false)}
+        userEmail={session?.email}
+      />
     </header>
   );
 }

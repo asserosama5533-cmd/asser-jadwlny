@@ -4,8 +4,6 @@ import { Calendar, Check, Sliders, FileText, ArrowRight, Sparkles, Bell, Clock, 
 import { Page, Schedule } from '../types';
 import { generateSchedule } from '../utils/scheduleGenerator';
 import { saveSchedule } from '../utils/storage';
-import NotificationGuideModal from './NotificationGuideModal';
-import { syncPushSubscription } from '../utils/pushHelper';
 
 interface CreateScheduleProps {
   setPage: (page: Page) => void;
@@ -38,74 +36,6 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
   const [quantDuration, setQuantDuration] = useState<number>(30);
   const [verbalDuration, setVerbalDuration] = useState<number>(5);
   const [verbalRestDays, setVerbalRestDays] = useState<number>(0); // 0, 1, or 2 days
-  const [studyReminderTime, setStudyReminderTime] = useState<string>(''); // e.g. "16:00"
-
-  // State for notification testing
-  const [testNotificationState, setTestNotificationState] = useState<'idle' | 'requesting' | 'countdown' | 'sent'>('idle');
-  const [countdown, setCountdown] = useState<number>(3);
-  const [isGuideOpen, setIsGuideOpen] = useState(false);
-
-  const handleTestNotification = async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      setIsGuideOpen(true);
-      return;
-    }
-
-    setTestNotificationState('requesting');
-    try {
-      const permission = await Notification.requestPermission();
-      if (permission !== 'granted') {
-        setIsGuideOpen(true);
-        setTestNotificationState('idle');
-        return;
-      }
-
-      setTestNotificationState('countdown');
-      setCountdown(3);
-      
-      const timer = setInterval(() => {
-        setCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            setTestNotificationState('sent');
-            
-            // Trigger actual service worker or standard notification
-            const title = '📖 حان وقت المذاكرة والتميز! 🚀';
-            const body = 'يا بطل، حان وقت مذاكرة جدولك اليومي. همتك عالية والـ 100% بانتظارك! 💪✨';
-            
-            // Register server-side push subscription so they get background notifications
-            syncPushSubscription(undefined, true);
-
-            if ('serviceWorker' in navigator) {
-              navigator.serviceWorker.ready.then(registration => {
-                registration.showNotification(title, {
-                  body: body,
-                  icon: '/favicon.ico',
-                  badge: '/favicon.ico',
-                  vibrate: [200, 100, 200]
-                } as any);
-              }).catch(() => {
-                new Notification(title, { body });
-              });
-            } else {
-              new Notification(title, { body });
-            }
-
-            // Reset back to idle after 3 seconds
-            setTimeout(() => {
-              setTestNotificationState('idle');
-            }, 3000);
-
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } catch (err) {
-      console.error(err);
-      setTestNotificationState('idle');
-    }
-  };
 
   // Custom Ranges State
   const [quantMode, setQuantMode] = useState<'all' | 'custom' | 'frequent'>('all');
@@ -217,21 +147,12 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
     );
 
     // Save
-    if (studyReminderTime) {
-      newSchedule.studyReminderTime = studyReminderTime;
-    }
-
     saveSchedule(newSchedule);
 
-    // Synchronize the updated reminder list with the server-side Web Push subscription
-    syncPushSubscription(undefined, studyReminderTime ? true : false);
-
-    // If reminder time is set, prompt for notification permission
-    if (studyReminderTime && typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission();
-      }
-    }
+    // Track schedule creation for Admin Analytics
+    try {
+      fetch('/api/analytics/schedule-created', { method: 'POST' });
+    } catch (e) {}
 
     // Navigate to schedules or detail
     setActiveScheduleId(newSchedule.id);
@@ -737,71 +658,6 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
             </div>
           </div>
 
-          {/* Notifications and Study Reminder */}
-          <div className="space-y-3 text-right border-t border-gray-100 pt-6">
-            <label className="block text-sm font-bold text-brand-blue flex items-center gap-2">
-              <Bell className="w-4 h-4 text-brand-gold animate-swing" />
-              <span>ضبط منبه وتذكير المذاكرة اليومي ⏰</span>
-            </label>
-            <p className="text-xs text-gray-500 leading-relaxed">
-              حدد الوقت المفضل لمذاكرتك، وسيقوم الموقع بإرسال تنبيه على جهازك/هاتفك (الأندرويد والآيفون) لتذكيرك ببدء الحصة اليومية حتى لو كنت خارج المتصفح! 📱
-            </p>
-            <div className="flex flex-col sm:flex-row items-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
-              <input
-                type="time"
-                value={studyReminderTime}
-                onChange={(e) => setStudyReminderTime(e.target.value)}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-lg bg-white border border-gray-200 focus:outline-none focus:ring-2 focus:ring-brand-gold/50 focus:border-brand-gold text-brand-blue font-bold font-mono text-center"
-              />
-              <span className="text-xs text-brand-gold font-bold bg-brand-blue/5 border border-brand-gold/20 px-3 py-1.5 rounded-lg">
-                {studyReminderTime ? `⏰ تذكير المذاكرة مفعّل في الساعة ${studyReminderTime}` : '😴 المنبه غير مفعّل (اختر وقتاً لتنشيط التنبيهات)'}
-              </span>
-            </div>
-
-            {/* Interactive Test Notification Button */}
-            <div className="bg-brand-gold/5 border border-brand-gold/20 p-4 rounded-xl flex flex-col gap-4 text-right">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <span className="block text-xs font-black text-brand-blue">هل تود اختبار التنبيهات على هاتفك؟ 🤔</span>
-                  <span className="block text-[11px] text-gray-500">
-                    اضغط على الزر الجانبي، وسيصلك تنبيه حقيقي على شاشة هاتفك (أندرويد / آيفون) لتتأكد من عمل الميزة بشكل ممتاز!
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleTestNotification}
-                  disabled={testNotificationState !== 'idle'}
-                  className={`w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-black transition-all shadow-md shrink-0 cursor-pointer ${
-                    testNotificationState === 'idle'
-                      ? 'bg-brand-blue text-white hover:bg-brand-blue-light'
-                      : testNotificationState === 'requesting'
-                      ? 'bg-slate-200 text-slate-500 cursor-wait'
-                      : testNotificationState === 'countdown'
-                      ? 'bg-brand-gold text-brand-blue font-mono animate-pulse'
-                      : 'bg-green-500 text-white'
-                  }`}
-                >
-                  {testNotificationState === 'idle' && '🔔 تجربة التنبيه الآن'}
-                  {testNotificationState === 'requesting' && 'جاري طلب الإذن...'}
-                  {testNotificationState === 'countdown' && `سيصلك التنبيه خلال ${countdown} ثوانٍ...`}
-                  {testNotificationState === 'sent' && '✅ تم إرسال التنبيه!'}
-                </button>
-              </div>
-
-              {/* Guide Link Button */}
-              <div className="border-t border-brand-gold/10 pt-3 flex justify-start">
-                <button
-                  type="button"
-                  onClick={() => setIsGuideOpen(true)}
-                  className="inline-flex items-center gap-1 text-[11px] font-black text-brand-blue/70 hover:text-brand-blue cursor-pointer bg-brand-blue/5 hover:bg-brand-blue/10 px-3 py-1.5 rounded-lg transition-all"
-                >
-                  <HelpCircle className="w-3.5 h-3.5 text-brand-gold animate-pulse" />
-                  <span>دليل وشرح تفعيل التنبيهات للأندرويد والآيفون خطوة بخطوة 💡</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
           {/* Submit Button */}
           <button
             id="btn-generate-schedule"
@@ -814,9 +670,6 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
 
         </form>
       </motion.div>
-
-      {/* Guide Modal */}
-      <NotificationGuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
 
     </div>
   );
