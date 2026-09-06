@@ -12,6 +12,7 @@ import {
   addDailyError, getDailyErrors, deleteDailyError, checkAndAutoTriggerStreak
 } from '../utils/storage';
 import SchedulePoster from './SchedulePoster';
+import { ZOBDA_QUANT_BANKS, MOST_FREQUENT_QUANT_BANKS, MOST_FREQUENT_VERBAL_SECTIONS } from '../utils/scheduleGenerator';
 
 interface ScheduleDetailProps {
   scheduleId: string;
@@ -284,9 +285,23 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
     // Handle changing the schedule type if it is different from original
     if (editScheduleType !== schedule.scheduleType) {
       const qFrom = schedule.quantRange?.from || 1;
-      const qTo = schedule.quantRange?.to || 124;
+      const qTo = schedule.quantRange?.to || 128;
       const vFrom = schedule.verbalRange?.from || 1;
-      const vTo = schedule.verbalRange?.to || 257;
+      const vTo = schedule.verbalRange?.to || 301;
+
+      let quantBanksList: number[] = [];
+      if (schedule.quantMode === 'zobda' || schedule.quantMode === 'frequent') {
+        quantBanksList = [...ZOBDA_QUANT_BANKS];
+      } else {
+        for (let i = qFrom; i <= qTo; i++) quantBanksList.push(i);
+      }
+
+      let verbalSectionsList: number[] = [];
+      if (schedule.verbalMode === 'frequent') {
+        verbalSectionsList = [...MOST_FREQUENT_VERBAL_SECTIONS];
+      } else {
+        for (let i = vFrom; i <= vTo; i++) verbalSectionsList.push(i);
+      }
 
       const studyDaysIndices = updatedDaysList
         .map((day, idx) => ({ day, idx }))
@@ -318,21 +333,19 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
           if (schedule.useSeparateDurations && editScheduleType === 'both') {
             const quantDuration = schedule.quantDuration || 30;
             if (currentStudyDayIndex < quantDuration) {
-              const totalQuant = Math.max(1, qTo - qFrom + 1);
+              const totalQuant = quantBanksList.length;
               const qStartOffset = Math.floor(currentStudyDayIndex * totalQuant / quantDuration);
               const qEndOffset = Math.floor((currentStudyDayIndex + 1) * totalQuant / quantDuration);
               for (let q = qStartOffset; q < qEndOffset; q++) {
-                const bankNum = qFrom + q;
-                if (bankNum <= qTo) dayQuantBanks.push(bankNum);
+                if (q < quantBanksList.length) dayQuantBanks.push(quantBanksList[q]);
               }
             }
           } else {
-            const totalQuant = Math.max(1, qTo - qFrom + 1);
+            const totalQuant = quantBanksList.length;
             const qStartOffset = Math.floor(currentStudyDayIndex * totalQuant / totalStudyDaysCount);
             const qEndOffset = Math.floor((currentStudyDayIndex + 1) * totalQuant / totalStudyDaysCount);
             for (let q = qStartOffset; q < qEndOffset; q++) {
-              const bankNum = qFrom + q;
-              if (bankNum <= qTo) dayQuantBanks.push(bankNum);
+              if (q < quantBanksList.length) dayQuantBanks.push(quantBanksList[q]);
             }
           }
         }
@@ -345,21 +358,19 @@ export default function ScheduleDetail({ scheduleId, setPage, session }: Schedul
             const verbalCycleLength = verbalDuration + verbalRestDays;
             const cyclePos = currentStudyDayIndex % verbalCycleLength;
             if (cyclePos < verbalDuration) {
-              const totalVerbal = Math.max(1, vTo - vFrom + 1);
+              const totalVerbal = verbalSectionsList.length;
               const vStartOffset = Math.floor(cyclePos * totalVerbal / verbalDuration);
               const vEndOffset = Math.floor((cyclePos + 1) * totalVerbal / verbalDuration);
               for (let v = vStartOffset; v < vEndOffset; v++) {
-                const secNum = vFrom + v;
-                if (secNum <= vTo) dayVerbalSections.push(secNum);
+                if (v < verbalSectionsList.length) dayVerbalSections.push(verbalSectionsList[v]);
               }
             }
           } else {
-            const totalVerbal = Math.max(1, vTo - vFrom + 1);
+            const totalVerbal = verbalSectionsList.length;
             const vStartOffset = Math.floor(currentStudyDayIndex * totalVerbal / totalStudyDaysCount);
             const vEndOffset = Math.floor((currentStudyDayIndex + 1) * totalVerbal / totalStudyDaysCount);
             for (let v = vStartOffset; v < vEndOffset; v++) {
-              const secNum = vFrom + v;
-              if (secNum <= vTo) dayVerbalSections.push(secNum);
+              if (v < verbalSectionsList.length) dayVerbalSections.push(verbalSectionsList[v]);
             }
           }
         }

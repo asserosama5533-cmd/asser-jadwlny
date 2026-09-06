@@ -38,13 +38,13 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
   const [verbalRestDays, setVerbalRestDays] = useState<number>(0); // 0, 1, or 2 days
 
   // Custom Ranges State
-  const [quantMode, setQuantMode] = useState<'all' | 'custom' | 'frequent'>('all');
+  const [quantMode, setQuantMode] = useState<'all' | 'custom' | 'zobda'>('all');
   const [quantFrom, setQuantFrom] = useState<number | ''>(1);
-  const [quantTo, setQuantTo] = useState<number | ''>(124);
+  const [quantTo, setQuantTo] = useState<number | ''>(128);
 
-  const [verbalMode, setVerbalMode] = useState<'all' | 'custom'>('all');
+  const [verbalMode, setVerbalMode] = useState<'all' | 'custom' | 'frequent'>('all');
   const [verbalFrom, setVerbalFrom] = useState<number | ''>(1);
-  const [verbalTo, setVerbalTo] = useState<number | ''>(257);
+  const [verbalTo, setVerbalTo] = useState<number | ''>(301);
   const [scheduleType, setScheduleType] = useState<'both' | 'quant' | 'verbal'>('both');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -92,18 +92,18 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
     }
 
     // Custom Ranges Validation
-    const qFrom = quantMode === 'all' ? 1 : (quantFrom === '' ? 0 : quantFrom);
-    const qTo = quantMode === 'all' ? 124 : (quantTo === '' ? 0 : quantTo);
+    const qFrom = quantMode === 'all' ? 1 : (quantMode === 'zobda' ? 1 : (quantFrom === '' ? 0 : quantFrom));
+    const qTo = quantMode === 'all' ? 128 : (quantMode === 'zobda' ? 34 : (quantTo === '' ? 0 : quantTo));
     const vFrom = verbalMode === 'all' ? 1 : (verbalFrom === '' ? 0 : verbalFrom);
-    const vTo = verbalMode === 'all' ? 257 : (verbalTo === '' ? 0 : verbalTo);
+    const vTo = verbalMode === 'all' ? 301 : (verbalTo === '' ? 0 : verbalTo);
 
     if (quantMode === 'custom') {
-      if (!qFrom || qFrom < 1 || qFrom > 124) {
-        setError('رقم بنك الكمي المبدئي يجب أن يكون بين 1 و 124');
+      if (!qFrom || qFrom < 1 || qFrom > 128) {
+        setError('رقم بنك الكمي المبدئي يجب أن يكون بين 1 و 128');
         return;
       }
-      if (!qTo || qTo < 1 || qTo > 124) {
-        setError('رقم بنك الكمي النهائي يجب أن يكون بين 1 و 124');
+      if (!qTo || qTo < 1 || qTo > 128) {
+        setError('رقم بنك الكمي النهائي يجب أن يكون بين 1 و 128');
         return;
       }
       if (qFrom > qTo) {
@@ -113,12 +113,12 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
     }
 
     if (verbalMode === 'custom') {
-      if (!vFrom || vFrom < 1 || vFrom > 257) {
-        setError('رقم قسم اللفظي المبدئي يجب أن يكون بين 1 و 257');
+      if (!vFrom || vFrom < 1 || vFrom > 301) {
+        setError('رقم قسم اللفظي المبدئي يجب أن يكون بين 1 و 301');
         return;
       }
-      if (!vTo || vTo < 1 || vTo > 257) {
-        setError('رقم قسم اللفظي النهائي يجب أن يكون بين 1 و 257');
+      if (!vTo || vTo < 1 || vTo > 301) {
+        setError('رقم قسم اللفظي النهائي يجب أن يكون بين 1 و 301');
         return;
       }
       if (vFrom > vTo) {
@@ -143,7 +143,8 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
       qDuration,
       vDuration,
       verbalRestDays,
-      quantMode
+      quantMode,
+      verbalMode
     );
 
     // Save
@@ -175,7 +176,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
       <div className="text-center space-y-4 mb-10">
         <h1 className="text-3xl font-extrabold text-brand-blue">صمم جدولك الذكي للقدرات</h1>
         <p className="text-gray-600 max-w-lg mx-auto">
-          أدخل مدة المذاكرة المطلوبة، وسيقوم النظام بتوزيع الـ ١٢٤ بنكاً كمياً والـ ٢٥٧ قسماً لفظياً بالتساوي عبر أيام خطتك بذكاء فائق.
+          أدخل مدة المذاكرة المطلوبة، وسيقوم النظام بتوزيع الـ ١٢٨ بنكاً كمياً والـ ٣٠١ قسماً لفظياً بالتساوي عبر أيام خطتك بذكاء فائق.
         </p>
       </div>
 
@@ -405,9 +406,9 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                 <div className="space-y-3 p-4 rounded-xl bg-slate-50/50 border border-slate-100">
                   <div className="flex items-center justify-between">
                     <span className="block text-sm font-bold text-brand-blue">بنوك الكمي</span>
-                    {quantMode === 'frequent' && (
+                    {quantMode === 'zobda' && (
                       <span className="text-[10px] font-black text-amber-800 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/20">
-                        🔥 62 بنك مختار
+                        🧈 34 بنك مفلتر
                       </span>
                     )}
                   </div>
@@ -421,18 +422,18 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                           : 'text-gray-600 hover:text-brand-blue'
                       }`}
                     >
-                      الكل (1 - 124)
+                      الكل (1 - 128)
                     </button>
                     <button
                       type="button"
-                      onClick={() => setQuantMode('frequent')}
+                      onClick={() => setQuantMode('zobda')}
                       className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
-                        quantMode === 'frequent'
+                        quantMode === 'zobda'
                           ? 'bg-amber-500 text-brand-blue shadow-md font-black'
                           : 'text-amber-800 hover:text-brand-blue font-bold'
                       }`}
                     >
-                      🔥 الأكثر تكراراً
+                      🧈 بنوك الزبدة
                     </button>
                     <button
                       type="button"
@@ -447,44 +448,44 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                     </button>
                   </div>
 
-                  {quantMode === 'frequent' && (
+                  {quantMode === 'zobda' && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
-                      className="p-3.5 rounded-xl bg-amber-50/80 border border-brand-gold/30 text-right space-y-2 text-xs text-brand-blue mt-2"
+                      className="p-3.5 rounded-xl bg-amber-50/90 border border-brand-gold/40 text-right space-y-2.5 text-xs text-brand-blue mt-2"
                     >
-                      <div className="flex items-center justify-between border-b border-brand-gold/20 pb-1.5">
-                        <div className="flex items-center gap-1.5 font-black text-amber-900">
-                          <Sparkles className="w-3.5 h-3.5 text-brand-gold fill-current" />
-                          <span>بنوك الكمي الأكثر تكراراً بالمحوسب:</span>
+                      <div className="flex items-center justify-between border-b border-brand-gold/30 pb-2">
+                        <div className="flex items-center gap-1.5 font-black text-amber-950 text-xs">
+                          <Sparkles className="w-4 h-4 text-brand-gold fill-current" />
+                          <span>بنوك الزبدة للكمي (المفلترة والمُحدّثة):</span>
                         </div>
-                        <span className="bg-brand-gold text-brand-blue px-2 py-0.5 rounded-md font-mono font-black text-[11px]">
-                          إجمالي 62 بنك ✅
+                        <span className="bg-brand-gold text-brand-blue px-2 py-0.5 rounded-md font-mono font-black text-[11px] shadow-sm">
+                          34 بنك فقط ✅
                         </span>
                       </div>
 
-                      <div className="space-y-1 text-[11px] font-bold text-gray-700 leading-relaxed">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0"></span>
-                          <span>• البنوك من 1 إلى 18</span>
+                      <div className="space-y-2 text-[11px] leading-relaxed">
+                        <div className="bg-white/85 p-2.5 rounded-lg border border-amber-200/70 space-y-1">
+                          <p className="font-extrabold text-amber-900 flex items-center gap-1">
+                            <span>❓ وش هي بنوك الزبدة؟</span>
+                          </p>
+                          <p className="text-gray-700 leading-normal text-[11px]">
+                            هي نفس البنوك العادية ولكن تمّت فلترتها وحذف الأسئلة المُكررة منها وحذف الصيغ القديمة غير المُحدَثة ليتبقى فقط الأسئلة التي ترِد نسخ لصق في اختبارك 😉
+                          </p>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0"></span>
-                          <span>• البنوك من 20 إلى 22</span>
+
+                        <div className="bg-white/85 p-2.5 rounded-lg border border-amber-200/70 space-y-1">
+                          <p className="font-extrabold text-amber-900 flex items-center gap-1">
+                            <span>✨ ما الفرق بين بنوك الزبدة وباقي البنوك؟</span>
+                          </p>
+                          <p className="text-gray-700 leading-normal text-[11px]">
+                            نفس الأسئلة لكن الفرق الوحيد هو إن بنوك الزبدة مفلترة وجميع أسئلتها وصيغها وَرَدت بالفعل للمختبرين خلال هذا العام.
+                          </p>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0"></span>
-                          <span>• البنوك من 24 إلى 29</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0"></span>
-                          <span>• البنوك من 102 إلى 124</span>
-                        </div>
-                        <div className="flex items-start gap-1.5 text-amber-900 font-extrabold bg-white/70 p-2 rounded-lg border border-brand-gold/20 mt-1">
-                          <span className="shrink-0 text-amber-700">• بنوك منفردة:</span>
-                          <span className="font-mono dir-ltr text-amber-900 font-black">
-                            50, 57, 58, 68, 74, 76, 82, 86, 90, 93, 96, 98
-                          </span>
+
+                        <div className="flex items-center justify-between text-[11px] font-bold text-amber-950 bg-amber-100/60 px-2.5 py-1.5 rounded-md border border-amber-200/60">
+                          <span>• تشمل البنوك المفلترة:</span>
+                          <span className="font-mono font-black text-brand-blue">34 بنك (من بنك 1 إلى 34)</span>
                         </div>
                       </div>
                     </motion.div>
@@ -501,7 +502,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                         <input
                           type="number"
                           min="1"
-                          max="124"
+                          max="128"
                           value={quantFrom}
                           onChange={(e) => {
                             const val = e.target.value;
@@ -515,7 +516,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                         <input
                           type="number"
                           min="1"
-                          max="124"
+                          max="128"
                           value={quantTo}
                           onChange={(e) => {
                             const val = e.target.value;
@@ -532,23 +533,41 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
               {/* Verbal Selection Block */}
               {(scheduleType === 'both' || scheduleType === 'verbal') && (
                 <div className="space-y-3 p-4 rounded-xl bg-slate-50/50 border border-slate-100">
-                  <span className="block text-sm font-bold text-brand-blue">أقسام اللفظي</span>
-                  <div className="grid grid-cols-2 gap-2 bg-gray-100 p-1 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <span className="block text-sm font-bold text-brand-blue">أقسام اللفظي</span>
+                    {verbalMode === 'frequent' && (
+                      <span className="text-[10px] font-black text-amber-800 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/20">
+                        🔥 178 قسم مختار
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 bg-gray-100 p-1 rounded-xl">
                     <button
                       type="button"
                       onClick={() => setVerbalMode('all')}
-                      className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                         verbalMode === 'all'
                           ? 'bg-brand-blue text-white shadow-md'
                           : 'text-gray-600 hover:text-brand-blue'
                       }`}
                     >
-                      الكل (1 - 257)
+                      الكل (1 - 301)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setVerbalMode('frequent')}
+                      className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
+                        verbalMode === 'frequent'
+                          ? 'bg-amber-500 text-brand-blue shadow-md font-black'
+                          : 'text-amber-800 hover:text-brand-blue font-bold'
+                      }`}
+                    >
+                      🔥 الأكثر تكراراً
                     </button>
                     <button
                       type="button"
                       onClick={() => setVerbalMode('custom')}
-                      className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                         verbalMode === 'custom'
                           ? 'bg-brand-blue text-white shadow-md'
                           : 'text-gray-600 hover:text-brand-blue'
@@ -557,6 +576,41 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                       نطاق مخصص 🎯
                     </button>
                   </div>
+
+                  {verbalMode === 'frequent' && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="p-3.5 rounded-xl bg-amber-50/80 border border-brand-gold/30 text-right space-y-2 text-xs text-brand-blue mt-2"
+                    >
+                      <div className="flex items-center justify-between border-b border-brand-gold/20 pb-1.5">
+                        <div className="flex items-center gap-1.5 font-black text-amber-900">
+                          <Sparkles className="w-3.5 h-3.5 text-brand-gold fill-current" />
+                          <span>أقسام اللفظي الأكثر تكراراً بالمحوسب:</span>
+                        </div>
+                        <span className="bg-brand-gold text-brand-blue px-2 py-0.5 rounded-md font-mono font-black text-[11px]">
+                          إجمالي 178 قسم ✅
+                        </span>
+                      </div>
+
+                      <div className="space-y-1 text-[11px] font-bold text-gray-700 leading-relaxed">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0"></span>
+                          <span>• الأقسام من 1 إلى 117</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0"></span>
+                          <span>• الأقسام من 263 إلى 301</span>
+                        </div>
+                        <div className="flex items-start gap-1.5 text-amber-900 font-extrabold bg-white/70 p-2 rounded-lg border border-brand-gold/20 mt-1">
+                          <span className="shrink-0 text-amber-700">• أقسام منفردة:</span>
+                          <span className="font-mono dir-ltr text-amber-900 font-black">
+                            119, 121, 123, 125, 130, 133, 142, 143, 144, 145, 146, 153, 160, 166, 167, 168, 180, 237, 239, 250, 255, 261
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
 
                   {verbalMode === 'custom' && (
                     <motion.div
@@ -569,7 +623,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                         <input
                           type="number"
                           min="1"
-                          max="257"
+                          max="301"
                           value={verbalFrom}
                           onChange={(e) => {
                             const val = e.target.value;
@@ -583,7 +637,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                         <input
                           type="number"
                           min="1"
-                          max="257"
+                          max="301"
                           value={verbalTo}
                           onChange={(e) => {
                             const val = e.target.value;

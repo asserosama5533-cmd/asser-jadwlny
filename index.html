@@ -25,8 +25,22 @@
     <meta name="twitter:description" content="اصنع جدولك المخصص للمذاكرة، راجع أخطائك، ونظم وقتك في القسم الكمي واللفظي بكل سهولة واحترافية للوصول للدرجة الكاملة!" />
     <meta name="twitter:image" content="/og-image.png" />
   </head>
-  <body>
-    <div id="root"></div>
+  <body class="bg-slate-900 text-slate-100">
+    <div id="root">
+      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0c1a30; font-family: system-ui, -apple-system, sans-serif; direction: rtl; text-align: center; padding: 20px;">
+        <div style="position: relative; width: 64px; height: 64px; margin-bottom: 20px;">
+          <div style="position: absolute; inset: 0; border: 3px solid rgba(191, 155, 48, 0.2); border-top-color: #bf9b30; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+          <div style="position: absolute; inset: 6px; border: 3px solid transparent; border-bottom-color: #3b82f6; border-radius: 50%; animation: spin 1.2s linear infinite reverse;"></div>
+        </div>
+        <h2 style="color: #ffffff; font-size: 20px; font-weight: 800; margin: 0 0 6px 0; letter-spacing: 0.5px;">منصة جدولني للقدرات 🎓</h2>
+        <p style="color: #94a3b8; font-size: 13px; margin: 0;">جاري تشغيل المنصة وتحميل جدولك الذكي...</p>
+      </div>
+      <style>
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      </style>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

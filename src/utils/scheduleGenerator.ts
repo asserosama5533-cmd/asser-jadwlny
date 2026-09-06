@@ -1,11 +1,16 @@
 import { Schedule, StudyDay } from '../types';
 
-export const MOST_FREQUENT_QUANT_BANKS: number[] = [
-  ...Array.from({ length: 18 }, (_, i) => i + 1), // 1 to 18
-  20, 21, 22,                                     // 20 to 22
-  24, 25, 26, 27, 28, 29,                         // 24 to 29
-  50, 57, 58, 68, 74, 76, 82, 86, 90, 93, 96, 98,  // Individual banks
-  ...Array.from({ length: 23 }, (_, i) => i + 102), // 102 to 124
+// بنوك الزبدة للكمي (34 بنك مفلترة وخالية من التكرار)
+export const ZOBDA_QUANT_BANKS: number[] = Array.from({ length: 34 }, (_, i) => i + 1); // 1 to 34
+
+// التوافق العكسي
+export const MOST_FREQUENT_QUANT_BANKS = ZOBDA_QUANT_BANKS;
+
+export const MOST_FREQUENT_VERBAL_SECTIONS: number[] = [
+  ...Array.from({ length: 117 }, (_, i) => i + 1), // 1 to 117
+  119, 121, 123, 125, 130, 133, 142, 143, 144, 145, 146,
+  153, 160, 166, 167, 168, 180, 237, 239, 250, 255, 261, // Individual sections
+  ...Array.from({ length: 39 }, (_, i) => i + 263), // 263 to 301
 ];
 
 export function formatDate(date: Date): string {
@@ -22,15 +27,16 @@ export function generateSchedule(
   restDays: number[],
   startDateString: string,
   quantFrom: number = 1,
-  quantTo: number = 124,
+  quantTo: number = 128,
   verbalFrom: number = 1,
-  verbalTo: number = 257,
+  verbalTo: number = 301,
   scheduleType: 'both' | 'quant' | 'verbal' = 'both',
   useSeparateDurations: boolean = false,
   quantDuration: number = 30,
   verbalDuration: number = 5,
   verbalRestDays: number = 0,
-  quantMode: 'all' | 'custom' | 'frequent' = 'all'
+  quantMode: 'all' | 'custom' | 'frequent' | 'zobda' = 'all',
+  verbalMode: 'all' | 'custom' | 'frequent' = 'all'
 ): Schedule {
   const startDate = new Date(startDateString);
   let activeStudyDays = 0;
@@ -38,15 +44,29 @@ export function generateSchedule(
 
   // Build the list of quant banks based on mode
   let quantBanksList: number[] = [];
-  if (quantMode === 'frequent') {
-    quantBanksList = [...MOST_FREQUENT_QUANT_BANKS];
+  if (quantMode === 'zobda' || quantMode === 'frequent') {
+    quantBanksList = [...ZOBDA_QUANT_BANKS];
   } else if (quantMode === 'custom') {
     for (let i = quantFrom; i <= quantTo; i++) {
       quantBanksList.push(i);
     }
   } else {
-    for (let i = 1; i <= 124; i++) {
+    for (let i = 1; i <= 128; i++) {
       quantBanksList.push(i);
+    }
+  }
+
+  // Build the list of verbal sections based on mode
+  let verbalSectionsList: number[] = [];
+  if (verbalMode === 'frequent') {
+    verbalSectionsList = [...MOST_FREQUENT_VERBAL_SECTIONS];
+  } else if (verbalMode === 'custom') {
+    for (let i = verbalFrom; i <= verbalTo; i++) {
+      verbalSectionsList.push(i);
+    }
+  } else {
+    for (let i = 1; i <= 301; i++) {
+      verbalSectionsList.push(i);
     }
   }
 
@@ -115,13 +135,12 @@ export function generateSchedule(
         const verbalCycleLength = verbalDuration + verbalRestDays;
         const cyclePos = currentStudyDayIndex % verbalCycleLength;
         if (cyclePos < verbalDuration) {
-          const totalVerbal = Math.max(1, verbalTo - verbalFrom + 1);
+          const totalVerbal = verbalSectionsList.length;
           const vStartOffset = Math.floor(cyclePos * totalVerbal / verbalDuration);
           const vEndOffset = Math.floor((cyclePos + 1) * totalVerbal / verbalDuration);
           for (let v = vStartOffset; v < vEndOffset; v++) {
-            const secNum = verbalFrom + v;
-            if (secNum <= verbalTo) {
-              verbalSections.push(secNum);
+            if (v < verbalSectionsList.length) {
+              verbalSections.push(verbalSectionsList[v]);
             }
           }
         }
@@ -139,15 +158,14 @@ export function generateSchedule(
           }
         }
 
-        // Verbal distribution: Custom range
+        // Verbal distribution
         if (scheduleType !== 'quant') {
-          const totalVerbal = Math.max(1, verbalTo - verbalFrom + 1);
+          const totalVerbal = verbalSectionsList.length;
           const vStartOffset = Math.floor(currentStudyDayIndex * totalVerbal / activeStudyDays);
           const vEndOffset = Math.floor((currentStudyDayIndex + 1) * totalVerbal / activeStudyDays);
           for (let v = vStartOffset; v < vEndOffset; v++) {
-            const secNum = verbalFrom + v;
-            if (secNum <= verbalTo) {
-              verbalSections.push(secNum);
+            if (v < verbalSectionsList.length) {
+              verbalSections.push(verbalSectionsList[v]);
             }
           }
         }
@@ -176,11 +194,19 @@ export function generateSchedule(
     }
   }
 
-  const defaultName = quantMode === 'frequent'
-    ? `جدول الأكثر تكراراً كمي (62 بنك)`
-    : (useSeparateDurations && scheduleType === 'both' 
-      ? `جدول مخصص (كمي: ${quantDuration} يوم، لفظي: ${verbalDuration} يوم)`
-      : `جدول مذاكرة - ${duration} ${durationUnit === 'days' ? 'يوم' : 'شهر'}`);
+  let defaultName = '';
+  const isQuantZobda = quantMode === 'zobda' || quantMode === 'frequent';
+  if (isQuantZobda && verbalMode === 'frequent') {
+    defaultName = `جدول الزبدة كمي (34 بنك) + الأكثر تكراراً لفظي (${MOST_FREQUENT_VERBAL_SECTIONS.length} قسم)`;
+  } else if (isQuantZobda) {
+    defaultName = `جدول بنوك الزبدة كمي (34 بنك)`;
+  } else if (verbalMode === 'frequent') {
+    defaultName = `جدول الأكثر تكراراً لفظي (${MOST_FREQUENT_VERBAL_SECTIONS.length} قسم)`;
+  } else if (useSeparateDurations && scheduleType === 'both') {
+    defaultName = `جدول مخصص (كمي: ${quantDuration} يوم، لفظي: ${verbalDuration} يوم)`;
+  } else {
+    defaultName = `جدول مذاكرة - ${duration} ${durationUnit === 'days' ? 'يوم' : 'شهر'}`;
+  }
 
   const generatedName = name.trim() || defaultName;
 
@@ -197,11 +223,14 @@ export function generateSchedule(
     totalStudyDays: activeStudyDays,
     totalCalendarDays,
     quantRange: scheduleType !== 'verbal' 
-      ? (quantMode === 'frequent' ? { from: 1, to: 124 } : { from: quantFrom, to: quantTo })
+      ? (isQuantZobda ? { from: 1, to: 34 } : { from: quantFrom, to: quantTo })
       : undefined,
-    verbalRange: scheduleType !== 'quant' ? { from: verbalFrom, to: verbalTo } : undefined,
+    verbalRange: scheduleType !== 'quant' 
+      ? (verbalMode === 'frequent' ? { from: 1, to: 301 } : { from: verbalFrom, to: verbalTo })
+      : undefined,
     scheduleType,
     quantMode,
+    verbalMode,
     cycleCount: 1,
     isLoopEnabled: true,
     useSeparateDurations,

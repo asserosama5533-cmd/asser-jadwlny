@@ -36,7 +36,8 @@ export interface Schedule {
   quantRange?: { from: number; to: number };
   verbalRange?: { from: number; to: number };
   scheduleType?: 'both' | 'quant' | 'verbal';
-  quantMode?: 'all' | 'custom' | 'frequent';
+  quantMode?: 'all' | 'custom' | 'frequent' | 'zobda';
+  verbalMode?: 'all' | 'custom' | 'frequent';
   cycleCount?: number;
   isLoopEnabled?: boolean;
   useSeparateDurations?: boolean;

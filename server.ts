@@ -2,6 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import https from "https";
+import http from "http";
 import { createServer as createViteServer } from "vite";
 import webpush from "web-push";
 import nodemailer from "nodemailer";
@@ -16,6 +17,35 @@ async function startServer() {
   // Ensure data directory exists
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+
+  // Ultra-fast Health Check & Ping endpoints for Render / Uptime monitors
+  app.get(["/api/health", "/health", "/ping"], (req, res) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    return res.json({
+      status: "ok",
+      uptime: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Automated Keep-Alive self-pinger for Render.com free tier (pings external URL before 15-minute sleep threshold)
+  const externalAppUrl = process.env.RENDER_EXTERNAL_URL || process.env.APP_URL;
+  if (externalAppUrl) {
+    console.log(`[Keep-Alive] Configured keep-alive target: ${externalAppUrl}`);
+    setInterval(() => {
+      try {
+        const pingUrl = externalAppUrl.endsWith("/") ? `${externalAppUrl}api/health` : `${externalAppUrl}/api/health`;
+        const client = pingUrl.startsWith("https") ? https : http;
+        client.get(pingUrl, (resp) => {
+          console.log(`[Keep-Alive] Successfully pinged ${pingUrl} - Status: ${resp.statusCode}`);
+        }).on("error", (err) => {
+          console.log(`[Keep-Alive Warning] Ping failed: ${err.message}`);
+        });
+      } catch (err: any) {
+        console.log(`[Keep-Alive Warning]: ${err.message}`);
+      }
+    }, 10 * 60 * 1000); // every 10 minutes
   }
 
   // Serve generated Open Graph preview image
