@@ -10,7 +10,7 @@ import ScheduleDetail from './components/ScheduleDetail';
 import Auth from './components/Auth';
 import ProfilePage from './components/ProfilePage';
 import ContactPage from './components/ContactPage';
-import { getSession } from './utils/storage';
+import { getSession, getProfile } from './utils/storage';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<Page>('landing');
@@ -39,13 +39,17 @@ export default function App() {
 
     const sendPing = () => {
       try {
+        const activeSession = getSession();
+        const profile = activeSession?.id ? getProfile(activeSession.id) : null;
+        const studentName = activeSession?.name || profile?.name || 'زائر للمنصة';
+
         fetch('/api/analytics/ping', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             clientId,
-            email: session?.email || null,
-            userAgent: navigator.userAgent
+            name: studentName,
+            email: activeSession?.email || null
           })
         }).catch(() => {});
       } catch (e) {}

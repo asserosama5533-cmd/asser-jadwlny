@@ -347,7 +347,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                 <motion.div 
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-amber-50/40 border border-brand-gold/15"
+                  className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 rounded-xl bg-amber-50/40 dark:bg-[#132247]/50 border border-brand-gold/15"
                 >
                   {/* Quant Duration */}
                   <div className="space-y-1 text-right">
@@ -403,23 +403,23 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               {/* Quant Selection Block */}
               {(scheduleType === 'both' || scheduleType === 'quant') && (
-                <div className="space-y-3 p-4 rounded-xl bg-slate-50/50 border border-slate-100">
+                <div className="space-y-3 p-4 rounded-xl bg-slate-50/50 dark:bg-[#0b1429]/70 border border-slate-100 dark:border-brand-gold/15">
                   <div className="flex items-center justify-between">
-                    <span className="block text-sm font-bold text-brand-blue">بنوك الكمي</span>
+                    <span className="block text-sm font-bold text-brand-blue dark:text-white">بنوك الكمي</span>
                     {quantMode === 'zobda' && (
-                      <span className="text-[10px] font-black text-amber-800 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/20">
+                      <span className="text-[10px] font-black text-amber-800 dark:text-brand-gold-light bg-amber-500/15 dark:bg-brand-gold/15 px-2 py-0.5 rounded-full border border-amber-500/20 dark:border-brand-gold/30">
                         🧈 34 بنك مفلتر
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5 bg-gray-100 p-1 rounded-xl">
+                  <div className="grid grid-cols-3 gap-1.5 bg-gray-100 dark:bg-[#080e21] p-1 rounded-xl">
                     <button
                       type="button"
                       onClick={() => setQuantMode('all')}
                       className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                         quantMode === 'all'
                           ? 'bg-brand-blue text-white shadow-md'
-                          : 'text-gray-600 hover:text-brand-blue'
+                          : 'text-gray-600 dark:text-gray-300 hover:text-brand-blue dark:hover:text-white'
                       }`}
                     >
                       الكل (1 - 128)
@@ -430,7 +430,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                       className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                         quantMode === 'zobda'
                           ? 'bg-amber-500 text-brand-blue shadow-md font-black'
-                          : 'text-amber-800 hover:text-brand-blue font-bold'
+                          : 'text-amber-800 dark:text-amber-400 hover:text-brand-blue dark:hover:text-amber-300 font-bold'
                       }`}
                     >
                       🧈 بنوك الزبدة
@@ -441,7 +441,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                       className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                         quantMode === 'custom'
                           ? 'bg-brand-blue text-white shadow-md'
-                          : 'text-gray-600 hover:text-brand-blue'
+                          : 'text-gray-600 dark:text-gray-300 hover:text-brand-blue dark:hover:text-white'
                       }`}
                     >
                       نطاق مخصص 🎯
@@ -452,10 +452,10 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
-                      className="p-3.5 rounded-xl bg-amber-50/90 border border-brand-gold/40 text-right space-y-2.5 text-xs text-brand-blue mt-2"
+                      className="p-3.5 rounded-xl bg-amber-50/90 dark:bg-[#132247] border border-brand-gold/40 dark:border-brand-gold/30 text-right space-y-2.5 text-xs text-brand-blue dark:text-slate-100 mt-2 shadow-sm"
                     >
-                      <div className="flex items-center justify-between border-b border-brand-gold/30 pb-2">
-                        <div className="flex items-center gap-1.5 font-black text-amber-950 text-xs">
+                      <div className="flex items-center justify-between border-b border-brand-gold/30 dark:border-brand-gold/20 pb-2">
+                        <div className="flex items-center gap-1.5 font-black text-amber-950 dark:text-brand-gold-light text-xs">
                           <Sparkles className="w-4 h-4 text-brand-gold fill-current" />
                           <span>بنوك الزبدة للكمي (المفلترة والمُحدّثة):</span>
                         </div>
@@ -465,27 +465,27 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                       </div>
 
                       <div className="space-y-2 text-[11px] leading-relaxed">
-                        <div className="bg-white/85 p-2.5 rounded-lg border border-amber-200/70 space-y-1">
-                          <p className="font-extrabold text-amber-900 flex items-center gap-1">
+                        <div className="bg-white/95 dark:bg-[#0b1429] p-2.5 rounded-lg border border-amber-200/70 dark:border-brand-gold/20 space-y-1 shadow-2xs">
+                          <p className="font-extrabold text-amber-900 dark:text-brand-gold flex items-center gap-1">
                             <span>❓ وش هي بنوك الزبدة؟</span>
                           </p>
-                          <p className="text-gray-700 leading-normal text-[11px]">
+                          <p className="text-gray-700 dark:text-slate-200 leading-normal text-[11px]">
                             هي نفس البنوك العادية ولكن تمّت فلترتها وحذف الأسئلة المُكررة منها وحذف الصيغ القديمة غير المُحدَثة ليتبقى فقط الأسئلة التي ترِد نسخ لصق في اختبارك 😉
                           </p>
                         </div>
 
-                        <div className="bg-white/85 p-2.5 rounded-lg border border-amber-200/70 space-y-1">
-                          <p className="font-extrabold text-amber-900 flex items-center gap-1">
+                        <div className="bg-white/95 dark:bg-[#0b1429] p-2.5 rounded-lg border border-amber-200/70 dark:border-brand-gold/20 space-y-1 shadow-2xs">
+                          <p className="font-extrabold text-amber-900 dark:text-brand-gold flex items-center gap-1">
                             <span>✨ ما الفرق بين بنوك الزبدة وباقي البنوك؟</span>
                           </p>
-                          <p className="text-gray-700 leading-normal text-[11px]">
+                          <p className="text-gray-700 dark:text-slate-200 leading-normal text-[11px]">
                             نفس الأسئلة لكن الفرق الوحيد هو إن بنوك الزبدة مفلترة وجميع أسئلتها وصيغها وَرَدت بالفعل للمختبرين خلال هذا العام.
                           </p>
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px] font-bold text-amber-950 bg-amber-100/60 px-2.5 py-1.5 rounded-md border border-amber-200/60">
+                        <div className="flex items-center justify-between text-[11px] font-bold text-amber-950 dark:text-brand-gold-light bg-amber-100/70 dark:bg-brand-gold/15 px-2.5 py-1.5 rounded-md border border-amber-200/60 dark:border-brand-gold/25">
                           <span>• تشمل البنوك المفلترة:</span>
-                          <span className="font-mono font-black text-brand-blue">34 بنك (من بنك 1 إلى 34)</span>
+                          <span className="font-mono font-black text-brand-blue dark:text-brand-gold">34 بنك (من بنك 1 إلى 34)</span>
                         </div>
                       </div>
                     </motion.div>
@@ -532,23 +532,23 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
 
               {/* Verbal Selection Block */}
               {(scheduleType === 'both' || scheduleType === 'verbal') && (
-                <div className="space-y-3 p-4 rounded-xl bg-slate-50/50 border border-slate-100">
+                <div className="space-y-3 p-4 rounded-xl bg-slate-50/50 dark:bg-[#0b1429]/70 border border-slate-100 dark:border-brand-gold/15">
                   <div className="flex items-center justify-between">
-                    <span className="block text-sm font-bold text-brand-blue">أقسام اللفظي</span>
+                    <span className="block text-sm font-bold text-brand-blue dark:text-white">أقسام اللفظي</span>
                     {verbalMode === 'frequent' && (
-                      <span className="text-[10px] font-black text-amber-800 bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/20">
+                      <span className="text-[10px] font-black text-amber-800 dark:text-brand-gold-light bg-amber-500/15 dark:bg-brand-gold/15 px-2 py-0.5 rounded-full border border-amber-500/20 dark:border-brand-gold/30">
                         🔥 178 قسم مختار
                       </span>
                     )}
                   </div>
-                  <div className="grid grid-cols-3 gap-1.5 bg-gray-100 p-1 rounded-xl">
+                  <div className="grid grid-cols-3 gap-1.5 bg-gray-100 dark:bg-[#080e21] p-1 rounded-xl">
                     <button
                       type="button"
                       onClick={() => setVerbalMode('all')}
                       className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                         verbalMode === 'all'
                           ? 'bg-brand-blue text-white shadow-md'
-                          : 'text-gray-600 hover:text-brand-blue'
+                          : 'text-gray-600 dark:text-gray-300 hover:text-brand-blue dark:hover:text-white'
                       }`}
                     >
                       الكل (1 - 301)
@@ -559,7 +559,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                       className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                         verbalMode === 'frequent'
                           ? 'bg-amber-500 text-brand-blue shadow-md font-black'
-                          : 'text-amber-800 hover:text-brand-blue font-bold'
+                          : 'text-amber-800 dark:text-amber-400 hover:text-brand-blue dark:hover:text-amber-300 font-bold'
                       }`}
                     >
                       🔥 الأكثر تكراراً
@@ -570,7 +570,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                       className={`py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
                         verbalMode === 'custom'
                           ? 'bg-brand-blue text-white shadow-md'
-                          : 'text-gray-600 hover:text-brand-blue'
+                          : 'text-gray-600 dark:text-gray-300 hover:text-brand-blue dark:hover:text-white'
                       }`}
                     >
                       نطاق مخصص 🎯
@@ -581,10 +581,10 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
-                      className="p-3.5 rounded-xl bg-amber-50/80 border border-brand-gold/30 text-right space-y-2 text-xs text-brand-blue mt-2"
+                      className="p-3.5 rounded-xl bg-amber-50/80 dark:bg-[#132247] border border-brand-gold/30 dark:border-brand-gold/25 text-right space-y-2 text-xs text-brand-blue dark:text-slate-100 mt-2 shadow-sm"
                     >
                       <div className="flex items-center justify-between border-b border-brand-gold/20 pb-1.5">
-                        <div className="flex items-center gap-1.5 font-black text-amber-900">
+                        <div className="flex items-center gap-1.5 font-black text-amber-900 dark:text-brand-gold-light">
                           <Sparkles className="w-3.5 h-3.5 text-brand-gold fill-current" />
                           <span>أقسام اللفظي الأكثر تكراراً بالمحوسب:</span>
                         </div>
@@ -593,7 +593,7 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                         </span>
                       </div>
 
-                      <div className="space-y-1 text-[11px] font-bold text-gray-700 leading-relaxed">
+                      <div className="space-y-1.5 text-[11px] font-bold text-gray-700 dark:text-slate-200 leading-relaxed">
                         <div className="flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0"></span>
                           <span>• الأقسام من 1 إلى 117</span>
@@ -602,9 +602,9 @@ export default function CreateSchedule({ setPage, setActiveScheduleId }: CreateS
                           <span className="w-1.5 h-1.5 rounded-full bg-brand-gold shrink-0"></span>
                           <span>• الأقسام من 263 إلى 301</span>
                         </div>
-                        <div className="flex items-start gap-1.5 text-amber-900 font-extrabold bg-white/70 p-2 rounded-lg border border-brand-gold/20 mt-1">
-                          <span className="shrink-0 text-amber-700">• أقسام منفردة:</span>
-                          <span className="font-mono dir-ltr text-amber-900 font-black">
+                        <div className="flex items-start gap-1.5 text-amber-900 dark:text-brand-gold-light font-extrabold bg-white/70 dark:bg-[#0b1429] p-2 rounded-lg border border-brand-gold/20 mt-1 shadow-2xs">
+                          <span className="shrink-0 text-amber-700 dark:text-brand-gold">• أقسام منفردة:</span>
+                          <span className="font-mono dir-ltr text-amber-900 dark:text-brand-gold-light font-black">
                             119, 121, 123, 125, 130, 133, 142, 143, 144, 145, 146, 153, 160, 166, 167, 168, 180, 237, 239, 250, 255, 261
                           </span>
                         </div>

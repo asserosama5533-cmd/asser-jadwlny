@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { domToPng } from 'modern-screenshot';
-import { Download, Share2, Sparkles, Star, Edit3, Eye, X, Maximize2 } from 'lucide-react';
+import { domToBlob } from 'modern-screenshot';
+import { Download, Share2, Sparkles, Star, Edit3, Eye, X, Maximize2, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Schedule, StudyDay } from '../types';
 import { getSession, getProfile } from '../utils/storage';
@@ -12,6 +12,13 @@ interface SchedulePosterProps {
 export default function SchedulePoster({ schedule }: SchedulePosterProps) {
   const posterRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
+
+  // Saved image modal for mobile preview & saving
+  const [savedImageModalData, setSavedImageModalData] = useState<{
+    url: string;
+    file: File;
+    fileName: string;
+  } | null>(null);
 
   // Poster customizable states
   const [title, setTitle] = useState('ثق بالله وهتقفل القدرات');
@@ -83,119 +90,81 @@ export default function SchedulePoster({ schedule }: SchedulePosterProps) {
     touchStartRef.current = null;
   };
 
+  // Robust universal image generation that supports iOS Safari, Android, and Desktop
+  const generatePosterImage = async (fromModal: boolean = false) => {
+    const targetNode = fromModal ? modalPosterRef.current : (posterRef.current || modalPosterRef.current);
+    if (!targetNode) return;
 
-
-  const handleDownload = async () => {
-    if (!posterRef.current) return;
     setLoading(true);
     try {
       await document.fonts.ready;
       
-      const dataUrl = await domToPng(posterRef.current, {
-        scale: 2, // Ultra sharp high resolution
+      const isMobile = typeof navigator !== 'undefined' && (
+        /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+        window.innerWidth < 768
+      );
+
+      const blob = await domToBlob(targetNode, {
+        scale: 2,
+        width: 1200,
+        height: 900,
         backgroundColor: '#ffffff'
       });
-      
-      const link = document.createElement('a');
-      link.download = `جدول_القدرات_${eventName.replace(/\s+/g, '_')}.png`;
-      link.href = dataUrl;
-      link.click();
+
+      if (!blob) {
+        throw new Error('Failed to create image blob');
+      }
+
+      const cleanFileName = `جدول_القدرات_${eventName.replace(/\s+/g, '_')}.png`;
+      const file = new File([blob], cleanFileName, { type: 'image/png' });
+      const objectUrl = URL.createObjectURL(blob);
+
+      setSavedImageModalData({
+        url: objectUrl,
+        file: file,
+        fileName: cleanFileName
+      });
+
+      // On desktop, trigger automatic download
+      if (!isMobile) {
+        const link = document.createElement('a');
+        link.download = cleanFileName;
+        link.href = objectUrl;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+          if (document.body.contains(link)) {
+            document.body.removeChild(link);
+          }
+        }, 1000);
+      } else {
+        // On mobile, if native share is available, try opening it immediately
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: `جدول القدرات - ${eventName}`,
+              text: `جدول مذاكرة القدرات من منصة جدولني`
+            });
+          } catch (shareErr: any) {
+            if (shareErr.name !== 'AbortError') {
+              console.warn('Share error:', shareErr);
+            }
+          }
+        }
+      }
     } catch (err) {
       console.error('Error generating image:', err);
-      alert('حدث خطأ أثناء حفظ الصورة، الرجاء المحاولة مرة أخرى.');
+      alert('حدث خطأ أثناء معالجة صورة الجدول. يمكنك المحاولة مرة أخرى.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleShare = async () => {
-    if (!posterRef.current) return;
-    
-    if (navigator.share && navigator.canShare) {
-      setLoading(true);
-      try {
-        const dataUrl = await domToPng(posterRef.current, {
-          scale: 2,
-          backgroundColor: '#ffffff'
-        });
-        
-        const res = await fetch(dataUrl);
-        const blob = await res.blob();
-        const file = new File([blob], 'schedule-poster.png', { type: 'image/png' });
-        
-        if (navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: `جدولي لاختبار القدرات - ${eventName}`,
-            text: `صممت جدولي للمذاكرة عبر منصة جدولني للقدرات من إعداد Asser Osama!`,
-          });
-        } else {
-          handleDownload();
-        }
-      } catch (err) {
-        console.error('Share error:', err);
-        handleDownload();
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      handleDownload();
-    }
-  };
-
-  const handleModalDownload = async () => {
-    if (!modalPosterRef.current) return;
-    setLoading(true);
-    try {
-      await document.fonts.ready;
-      const dataUrl = await domToPng(modalPosterRef.current, {
-        scale: 2,
-        backgroundColor: '#ffffff'
-      });
-      const link = document.createElement('a');
-      link.download = `جدول_القدرات_${eventName.replace(/\s+/g, '_')}.png`;
-      link.href = dataUrl;
-      link.click();
-    } catch (err) {
-      console.error('Error generating image from modal:', err);
-      alert('حدث خطأ أثناء حفظ الصورة، الرجاء المحاولة مرة أخرى.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleModalShare = async () => {
-    if (!modalPosterRef.current) return;
-    if (navigator.share && navigator.canShare) {
-      setLoading(true);
-      try {
-        const dataUrl = await domToPng(modalPosterRef.current, {
-          scale: 2,
-          backgroundColor: '#ffffff'
-        });
-        const res = await fetch(dataUrl);
-        const blob = await res.blob();
-        const file = new File([blob], 'schedule-poster.png', { type: 'image/png' });
-        
-        if (navigator.canShare({ files: [file] })) {
-          await navigator.share({
-            files: [file],
-            title: `جدولي لاختبار القدرات - ${eventName}`,
-            text: `صممت جدولي للمذاكرة عبر منصة جدولني للقدرات من إعداد Asser Osama!`,
-          });
-        } else {
-          handleModalDownload();
-        }
-      } catch (err) {
-        console.error('Share error:', err);
-        handleModalDownload();
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      handleModalDownload();
-    }
-  };
+  const handleDownload = () => generatePosterImage(false);
+  const handleModalDownload = () => generatePosterImage(true);
+  const handleShare = () => generatePosterImage(false);
+  const handleModalShare = () => generatePosterImage(true);
 
   // Group days into calendar weeks matching their actual weekday (Sunday=0, Monday=1, ..., Saturday=6)
   const getWeeks = () => {
@@ -524,10 +493,13 @@ export default function SchedulePoster({ schedule }: SchedulePosterProps) {
             </div>
 
             {/* Creator Name (Fixed to Asser Osama) */}
-            <div className="flex items-center gap-1.5 text-sm font-black text-brand-blue bg-white/60 px-3 py-1 rounded-lg border border-brand-blue/10">
-              <span className="text-gray-500 font-bold text-xs">إعداد:</span>
-              <span className="font-sans text-brand-gold text-base font-black tracking-wide">{creatorName}</span>
-              <svg className="w-5 h-5 text-brand-blue shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <div 
+              className="flex items-center gap-1.5 text-sm font-black text-brand-blue bg-white/75 px-3 py-1 rounded-lg border border-brand-blue/10"
+              style={{ color: '#0f1b3d', backgroundColor: 'rgba(255, 255, 255, 0.85)' }}
+            >
+              <span className="text-gray-500 font-bold text-xs" style={{ color: '#64748b' }}>إعداد:</span>
+              <span className="font-sans text-brand-gold text-base font-black tracking-wide" style={{ color: '#c9a84c' }}>{creatorName}</span>
+              <svg className="w-5 h-5 text-brand-blue shrink-0" style={{ color: '#0f1b3d' }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
                 <path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5" />
               </svg>
@@ -542,27 +514,39 @@ export default function SchedulePoster({ schedule }: SchedulePosterProps) {
 
             <div className="flex flex-wrap items-center gap-1.5" dir="ltr">
               {/* Telegram */}
-              <div className="flex items-center gap-1 text-[11px] font-mono font-black text-sky-700 bg-white px-2 py-0.5 rounded-md border border-sky-200 shadow-2xs" dir="ltr">
-                <svg className="w-3.5 h-3.5 text-sky-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <div 
+                className="flex items-center gap-1 text-[11px] font-mono font-black text-sky-700 bg-white px-2 py-0.5 rounded-md border border-sky-200 shadow-2xs" 
+                style={{ color: '#0369a1', backgroundColor: '#ffffff' }}
+                dir="ltr"
+              >
+                <svg className="w-3.5 h-3.5 text-sky-500 shrink-0" style={{ color: '#0284c7', fill: '#0284c7' }} viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 0C5.37 0 0 5.37 0 12s5.37 12 12 12 12-5.37 12-12S18.63 0 12 0zm5.56 8.16l-2.03 9.56c-.15.68-.55.84-1.12.52l-3.1-2.29-1.5 1.44c-.17.17-.31.31-.63.31l.22-3.17 5.77-5.21c.25-.22-.05-.35-.39-.12l-7.14 4.5-3.07-.96c-.67-.21-.68-.67.14-.99l12.01-4.63c.56-.21 1.05.13.84.85z"/>
                 </svg>
-                <span className="text-sky-600" dir="ltr">@Asser70</span>
+                <span className="text-sky-600 font-bold" style={{ color: '#0284c7' }} dir="ltr">@Asser70</span>
               </div>
 
               {/* Instagram */}
-              <div className="flex items-center gap-1 text-[11px] font-mono font-black text-pink-700 bg-white px-2 py-0.5 rounded-md border border-pink-200 shadow-2xs" dir="ltr">
-                <svg className="w-3.5 h-3.5 text-pink-500 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <div 
+                className="flex items-center gap-1 text-[11px] font-mono font-black text-pink-700 bg-white px-2 py-0.5 rounded-md border border-pink-200 shadow-2xs" 
+                style={{ color: '#be185d', backgroundColor: '#ffffff' }}
+                dir="ltr"
+              >
+                <svg className="w-3.5 h-3.5 text-pink-500 shrink-0" style={{ color: '#db2777', fill: '#db2777' }} viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
                 </svg>
-                <span className="text-pink-600" dir="ltr">@_asser016</span>
+                <span className="text-pink-600 font-bold" style={{ color: '#db2777' }} dir="ltr">@_asser016</span>
               </div>
 
               {/* TikTok */}
-              <div className="flex items-center gap-1 text-[11px] font-mono font-black text-slate-800 bg-white px-2 py-0.5 rounded-md border border-slate-300 shadow-2xs" dir="ltr">
-                <svg className="w-3.5 h-3.5 text-slate-900 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+              <div 
+                className="flex items-center gap-1 text-[11px] font-mono font-black text-slate-800 bg-white px-2 py-0.5 rounded-md border border-slate-300 shadow-2xs" 
+                style={{ color: '#0f172a', backgroundColor: '#ffffff' }}
+                dir="ltr"
+              >
+                <svg className="w-3.5 h-3.5 text-slate-900 shrink-0" style={{ color: '#0f172a', fill: '#0f172a' }} viewBox="0 0 24 24" fill="currentColor">
                   <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64c.29 0 .56.04.82.11V9.4a6.33 6.33 0 00-1-.08A6.34 6.34 0 003 15.66a6.34 6.34 0 0010.86 4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1.04-.52z"/>
                 </svg>
-                <span className="text-slate-900" dir="ltr">@o1v__asser</span>
+                <span className="text-slate-900 font-bold" style={{ color: '#0f172a' }} dir="ltr">@o1v__asser</span>
               </div>
             </div>
           </div>
@@ -814,6 +798,117 @@ export default function SchedulePoster({ schedule }: SchedulePosterProps) {
             </div>
           );
         })()}
+      </AnimatePresence>
+
+      {/* SAVED IMAGE MODAL (Ensures 100% successful save on all mobile devices & iOS) */}
+      <AnimatePresence>
+        {savedImageModalData && (
+          <div 
+            className="fixed inset-0 z-[10000] bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+            style={{ direction: 'rtl' }}
+          >
+            <div className="bg-[#0f1b3d] border border-brand-gold/30 rounded-2xl max-w-lg w-full p-4 sm:p-5 space-y-3.5 text-white shadow-2xl my-auto animate-fade-in">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-brand-gold/20 pb-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-brand-gold animate-pulse" />
+                  <h3 className="text-sm sm:text-base font-black text-white">تم تجهيز صورة جدولك بنجاح! 🎉</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    URL.revokeObjectURL(savedImageModalData.url);
+                    setSavedImageModalData(null);
+                  }}
+                  className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/10 transition-all cursor-pointer"
+                  title="إغلاق"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Instructions for phones / iPhone */}
+              <div className="p-3 bg-brand-gold/15 rounded-xl border border-brand-gold/25 text-xs text-brand-gold-light space-y-1 text-right">
+                <p className="font-bold flex items-center gap-1">
+                  <span>💡 لمستخدمي الهواتف والآيفون:</span>
+                </p>
+                <p className="text-[11px] leading-relaxed text-gray-200">
+                  اضغط على <b>(حفظ في ألبوم الصور)</b> أدناه، أو <b>اضغط مطولاً على الصورة</b> بالأسفل واختر <b>(حفظ الصورة / Save Image)</b> لتجدها مباشرة في استوديو الصور!
+                </p>
+              </div>
+
+              {/* Image Preview Container (Long press friendly) */}
+              <div className="rounded-xl overflow-hidden border border-brand-gold/30 shadow-inner bg-white/5 flex justify-center max-h-[42vh] overflow-y-auto">
+                <img
+                  src={savedImageModalData.url}
+                  alt="جدول القدرات"
+                  className="w-full h-auto object-contain cursor-pointer"
+                  title="اضغط مطولاً لحفظ الصورة"
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2 pt-1">
+                {typeof navigator !== 'undefined' && navigator.share && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        if (navigator.canShare && navigator.canShare({ files: [savedImageModalData.file] })) {
+                          await navigator.share({
+                            files: [savedImageModalData.file],
+                            title: `جدول القدرات - ${eventName}`,
+                            text: `جدولي لاختبار القدرات من منصة جدولني`
+                          });
+                        }
+                      } catch (e: any) {
+                        if (e.name !== 'AbortError') {
+                          console.warn('Share error', e);
+                        }
+                      }
+                    }}
+                    className="w-full py-3 px-4 bg-brand-gold text-brand-blue font-black rounded-xl text-xs sm:text-sm hover:bg-brand-gold-light transition-all flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    <span>📱 حفظ في ألبوم الصور (مشاركة سريعة)</span>
+                  </button>
+                )}
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const a = document.createElement('a');
+                      a.href = savedImageModalData.url;
+                      a.download = savedImageModalData.fileName;
+                      document.body.appendChild(a);
+                      a.click();
+                      setTimeout(() => {
+                        if (document.body.contains(a)) {
+                          document.body.removeChild(a);
+                        }
+                      }, 800);
+                    }}
+                    className="py-2.5 px-3 bg-[#162550] hover:bg-[#1f346e] text-white font-bold rounded-xl text-xs border border-brand-gold/20 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Download className="w-4 h-4 text-brand-gold" />
+                    <span>⬇️ تنزيل كملف</span>
+                  </button>
+
+                  <a
+                    href={savedImageModalData.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-2.5 px-3 bg-[#162550] hover:bg-[#1f346e] text-white font-bold rounded-xl text-xs border border-brand-gold/20 flex items-center justify-center gap-1.5 transition-all text-center"
+                  >
+                    <ExternalLink className="w-4 h-4 text-brand-gold" />
+                    <span>↗️ فتح بحجم كامل</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </AnimatePresence>
 
     </div>

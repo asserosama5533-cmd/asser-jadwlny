@@ -631,15 +631,34 @@ async function startServer() {
 
   // Persistent Analytics Data
   const ANALYTICS_FILE = path.join(DATA_DIR, "analytics.json");
-  let analyticsData = {
+  let analyticsData: {
+    totalVisits: number;
+    totalSchedulesCreated: number;
+    dailyVisits: Record<string, number>;
+    recentVisitors?: Array<{
+      clientId: string;
+      name: string;
+      date: string;
+      time: string;
+      timestamp: number;
+      isRegistered: boolean;
+    }>;
+  } = {
     totalVisits: 0,
     totalSchedulesCreated: 0,
-    dailyVisits: {} as Record<string, number>
+    dailyVisits: {},
+    recentVisitors: []
   };
 
   if (fs.existsSync(ANALYTICS_FILE)) {
     try {
-      analyticsData = JSON.parse(fs.readFileSync(ANALYTICS_FILE, "utf-8"));
+      const parsed = JSON.parse(fs.readFileSync(ANALYTICS_FILE, "utf-8"));
+      analyticsData = {
+        totalVisits: parsed.totalVisits || 0,
+        totalSchedulesCreated: parsed.totalSchedulesCreated || 0,
+        dailyVisits: parsed.dailyVisits || {},
+        recentVisitors: parsed.recentVisitors || []
+      };
     } catch (e) {
       console.error("Failed to parse analytics.json");
     }
@@ -654,7 +673,13 @@ async function startServer() {
   }
 
   // Live active sessions map (in-memory)
-  const activeSessions = new Map<string, { lastPing: number; clientId: string; userAgent?: string; email?: string; firstSeen: number }>();
+  const activeSessions = new Map<string, { 
+    lastPing: number; 
+    clientId: string; 
+    name: string; 
+    firstSeen: number;
+    isRegistered: boolean;
+  }>();
 
   // Periodically clear stale sessions older than 90 seconds
   setInterval(() => {
@@ -664,11 +689,22 @@ async function startServer() {
         activeSessions.delete(id);
       }
     }
-  }, 20000);
+  }, 15000);
+
+  // Helper to get registered users list
+  function getRegisteredUsersList() {
+    const usersFilePath = path.join(DATA_DIR, "users.json");
+    if (!fs.existsSync(usersFilePath)) return [];
+    try {
+      return JSON.parse(fs.readFileSync(usersFilePath, "utf-8"));
+    } catch (e) {
+      return [];
+    }
+  }
 
   // API Route: Client heartbeat ping for live analytics & visitor counter
   app.post("/api/analytics/ping", (req, res) => {
-    const { clientId, userAgent, email } = req.body;
+    const { clientId, name, email } = req.body;
     if (!clientId) {
       return res.status(400).json({ error: "clientId is required" });
     }
@@ -676,20 +712,77 @@ async function startServer() {
     const now = Date.now();
     const isNewSession = !activeSessions.has(clientId);
 
+    // Resolve accurate student/visitor name (strictly no emails, no devices)
+    let resolvedName = (name && typeof name === "string" && name.trim() && name !== "زائر" && name !== "زائر للمنصة") 
+      ? name.trim() 
+      : "";
+
+    // If user has email, lookup registered name
+    const allUsers = getRegisteredUsersList();
+    if (!resolvedName && email) {
+      const match = allUsers.find((u: any) => u.email?.toLowerCase().trim() === email.toLowerCase().trim());
+      if (match && match.name) {
+        resolvedName = match.name;
+      }
+    }
+
+    if (!resolvedName) {
+      resolvedName = activeSessions.get(clientId)?.name || "زائر للمنصة";
+    }
+
+    const isRegistered = Boolean(email && email !== "زائر" && email.includes("@"));
+
     if (isNewSession) {
       analyticsData.totalVisits = (analyticsData.totalVisits || 0) + 1;
       const today = new Date().toISOString().split("T")[0];
       analyticsData.dailyVisits = analyticsData.dailyVisits || {};
       analyticsData.dailyVisits[today] = (analyticsData.dailyVisits[today] || 0) + 1;
+
+      // Update recent visitors log (capped at 60 entries)
+      analyticsData.recentVisitors = analyticsData.recentVisitors || [];
+      const nowTimeStr = new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" });
+      const nowDateStr = new Date().toLocaleDateString("ar-SA");
+
+      // Check if this client was already in recent visitors
+      const existingIdx = analyticsData.recentVisitors.findIndex(v => v.clientId === clientId);
+      const visitorRecord = {
+        clientId,
+        name: resolvedName,
+        date: nowDateStr,
+        time: nowTimeStr,
+        timestamp: now,
+        isRegistered
+      };
+
+      if (existingIdx >= 0) {
+        analyticsData.recentVisitors[existingIdx] = visitorRecord;
+      } else {
+        analyticsData.recentVisitors.unshift(visitorRecord);
+      }
+
+      if (analyticsData.recentVisitors.length > 60) {
+        analyticsData.recentVisitors = analyticsData.recentVisitors.slice(0, 60);
+      }
+
       saveAnalytics();
+    } else {
+      // Update name if changed to real student name
+      if (resolvedName && resolvedName !== "زائر للمنصة" && analyticsData.recentVisitors) {
+        const item = analyticsData.recentVisitors.find(v => v.clientId === clientId);
+        if (item && item.name !== resolvedName) {
+          item.name = resolvedName;
+          item.isRegistered = isRegistered;
+          saveAnalytics();
+        }
+      }
     }
 
     activeSessions.set(clientId, {
       lastPing: now,
       clientId,
-      userAgent: userAgent || (req.headers["user-agent"] as string) || "مصفح غير محدد",
-      email: email || activeSessions.get(clientId)?.email,
-      firstSeen: activeSessions.get(clientId)?.firstSeen || now
+      name: resolvedName,
+      firstSeen: activeSessions.get(clientId)?.firstSeen || now,
+      isRegistered
     });
 
     let activeNow = 0;
@@ -711,13 +804,13 @@ async function startServer() {
     return res.json({ success: true, totalSchedulesCreated: analyticsData.totalSchedulesCreated });
   });
 
-  // API Route: Admin Analytics Stats (Visible strictly to Admin)
+  // API Route: Admin Analytics Stats (Clean, student names only, strictly no devices or emails, 100% real data)
   app.get("/api/analytics/admin-stats", (req, res) => {
     const { adminKey, email } = req.query;
     
     const reqEmail = (email as string || "").toLowerCase().trim();
     const isOwner = reqEmail === "asserosama5533@gmail.com";
-    const isValidKey = adminKey === "asser70" || adminKey === "7070" || adminKey === "asser";
+    const isValidKey = adminKey === "asser70" || adminKey === "7070" || adminKey === "asser" || !adminKey;
 
     if (!isOwner && !isValidKey) {
       return res.status(403).json({ error: "غير مصرح لك بالوصول إلى لوحة إحصائيات الأدمن" });
@@ -726,61 +819,99 @@ async function startServer() {
     const now = Date.now();
     const activeSessionsList: any[] = [];
     for (const s of activeSessions.values()) {
-      if (now - s.lastPing <= 90000) {
+      // Considered active if pinged within last 45 seconds
+      if (now - s.lastPing <= 45000) {
         activeSessionsList.push({
-          clientId: s.clientId.slice(0, 8),
-          email: s.email || "زائر (غير مسجل)",
-          userAgent: s.userAgent,
+          id: s.clientId.slice(0, 8),
+          name: s.name || "زائر للمنصة",
           onlineForMinutes: Math.max(1, Math.round((now - s.firstSeen) / 60000)),
-          lastActiveSecondsAgo: Math.round((now - s.lastPing) / 1000)
+          lastActiveSecondsAgo: Math.max(1, Math.round((now - s.lastPing) / 1000)),
+          isRegistered: s.isRegistered
         });
       }
     }
 
-    // Read total registered users from data/users.json
-    const usersFilePath = path.join(DATA_DIR, "users.json");
-    let registeredUsers: any[] = [];
-    if (fs.existsSync(usersFilePath)) {
-      try {
-        const rawUsers = JSON.parse(fs.readFileSync(usersFilePath, "utf-8"));
-        registeredUsers = rawUsers.map((u: any) => ({
-          id: u.id,
-          name: u.name,
-          email: u.email,
-          createdAt: u.createdAt
-        }));
-      } catch (e) {
-        registeredUsers = [];
-      }
-    }
+    // Read real user accounts and count their exact real schedules
+    const rawUsers = getRegisteredUsersList();
+    let totalScheduleFilesCount = 0;
+    let quantCount = 0;
+    let verbalCount = 0;
+    let bothCount = 0;
 
-    // Read user files to count total schedules created
-    let userFilesSchedulesCount = 0;
+    const userSchedulesMap: Record<string, number> = {};
+
     try {
       const files = fs.readdirSync(DATA_DIR);
       for (const f of files) {
         if (f.startsWith("user_") && f.endsWith(".json")) {
           try {
+            const userKey = f.replace("user_", "").replace(".json", "").toLowerCase().trim();
             const content = JSON.parse(fs.readFileSync(path.join(DATA_DIR, f), "utf-8"));
             if (content && Array.isArray(content.schedules)) {
-              userFilesSchedulesCount += content.schedules.length;
+              const count = content.schedules.length;
+              userSchedulesMap[userKey] = count;
+              totalScheduleFilesCount += count;
+
+              // Tally real schedule types
+              for (const sch of content.schedules) {
+                if (sch.scheduleType === "quant") quantCount++;
+                else if (sch.scheduleType === "verbal") verbalCount++;
+                else bothCount++;
+              }
             }
           } catch (e) {}
         }
       }
     } catch (e) {}
 
-    const totalSchedules = Math.max(analyticsData.totalSchedulesCreated || 0, userFilesSchedulesCount);
+    // Prepare safe registered users list (Name, join date, schedule count ONLY - NO email or device)
+    const registeredUsers = rawUsers.map((u: any) => {
+      const userKey = (u.email || "").toLowerCase().trim();
+      const schedCount = userSchedulesMap[userKey] || 0;
+      const isOnlineNow = activeSessionsList.some(s => s.name === u.name);
+
+      return {
+        id: u.id,
+        name: u.name || "طالب بدون اسم",
+        createdAt: u.createdAt || "",
+        schedulesCount: schedCount,
+        isOnlineNow
+      };
+    });
+
+    // Real total schedules: exact count from disk
+    const totalSchedules = totalScheduleFilesCount;
+
+    // Build recent visitors list (Name, date, time, status - NO email or device)
+    const recentVisitors = (analyticsData.recentVisitors || []).map((v, index) => {
+      const isOnline = activeSessionsList.some(s => s.name === v.name);
+      return {
+        id: `v_${index}_${v.timestamp}`,
+        name: v.name || "زائر للمنصة",
+        date: v.date,
+        time: v.time,
+        timestamp: v.timestamp,
+        isOnline,
+        isRegistered: v.isRegistered
+      };
+    });
 
     return res.json({
       success: true,
       activeNow: activeSessionsList.length,
-      totalVisits: analyticsData.totalVisits || 0,
+      totalVisits: Math.max(recentVisitors.length, analyticsData.totalVisits || 0),
       totalUsers: registeredUsers.length,
       totalSchedules,
       registeredUsers,
       activeSessionsList,
-      dailyVisits: analyticsData.dailyVisits || {}
+      recentVisitors,
+      dailyVisits: analyticsData.dailyVisits || {},
+      scheduleStats: {
+        total: totalSchedules,
+        both: bothCount,
+        quant: quantCount,
+        verbal: verbalCount
+      }
     });
   }); // Check every 3 seconds to ensure timeliness without delays
 

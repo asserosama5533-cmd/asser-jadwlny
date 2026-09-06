@@ -285,6 +285,16 @@ body {
   background-color: rgba(22, 37, 80, 0.5) !important;
 }
 
+.dark .bg-amber-50\/40,
+.dark .bg-amber-50\/50,
+.dark .bg-amber-50\/60,
+.dark .bg-amber-50\/70,
+.dark .bg-amber-50\/80,
+.dark .bg-amber-50\/90 {
+  background-color: rgba(19, 34, 71, 0.85) !important;
+  border-color: rgba(201, 168, 76, 0.3) !important;
+}
+
 /* Footer override */
 .dark #main-global-footer {
   background-color: #060b1a !important;
@@ -294,6 +304,11 @@ body {
 /* ==========================================================================
    Schedule Poster (Pristine Light Theme Preservation in Dark Mode)
    ========================================================================== */
+.dark #poster-node,
+.dark #poster-node * {
+  color-scheme: light !important;
+}
+
 .dark #poster-node {
   background-color: #ffffff !important;
   color: #0f1b3d !important;
@@ -302,6 +317,70 @@ body {
 .dark #poster-node .bg-white {
   background-color: #ffffff !important;
   color: #0f1b3d !important;
+}
+
+.dark #poster-node .text-slate-900,
+.dark #poster-node .text-gray-900,
+.dark #poster-node .text-zinc-900 {
+  color: #0f172a !important;
+}
+
+.dark #poster-node .text-slate-800,
+.dark #poster-node .text-gray-800,
+.dark #poster-node .text-zinc-800 {
+  color: #1e293b !important;
+}
+
+.dark #poster-node .text-slate-700,
+.dark #poster-node .text-gray-700,
+.dark #poster-node .text-zinc-700 {
+  color: #334155 !important;
+}
+
+.dark #poster-node .text-slate-600,
+.dark #poster-node .text-gray-600,
+.dark #poster-node .text-zinc-600 {
+  color: #475569 !important;
+}
+
+.dark #poster-node .text-slate-500,
+.dark #poster-node .text-gray-500,
+.dark #poster-node .text-zinc-500 {
+  color: #64748b !important;
+}
+
+.dark #poster-node .text-slate-400,
+.dark #poster-node .text-gray-400,
+.dark #poster-node .text-zinc-400 {
+  color: #94a3b8 !important;
+}
+
+.dark #poster-node .text-sky-700 {
+  color: #0369a1 !important;
+}
+
+.dark #poster-node .text-sky-600 {
+  color: #0284c7 !important;
+}
+
+.dark #poster-node .text-pink-700 {
+  color: #be185d !important;
+}
+
+.dark #poster-node .text-pink-600 {
+  color: #db2777 !important;
+}
+
+.dark #poster-node .text-amber-900 {
+  color: #78350f !important;
+}
+
+.dark #poster-node .text-amber-800 {
+  color: #92400e !important;
+}
+
+.dark #poster-node .text-amber-700 {
+  color: #b45309 !important;
 }
 
 .dark #poster-node .bg-slate-50\/50 {

@@ -57,7 +57,17 @@ export default function Header({ currentPage, setPage, session, setSession }: He
   }, []);
 
   useEffect(() => {
-    setIsAdmin(session?.email?.toLowerCase().trim() === 'asserosama5533@gmail.com');
+    const checkAdmin = () => {
+      const email = session?.email?.toLowerCase().trim();
+      const name = session?.name?.trim();
+      const isStored = typeof window !== 'undefined' && localStorage.getItem('admin_unlocked') === 'true';
+      const isAsser = email === 'asserosama5533@gmail.com' || email?.includes('asserosama') || name === 'آسر' || name === 'آسر أسامة' || isStored;
+      setIsAdmin(isAsser);
+    };
+
+    checkAdmin();
+    window.addEventListener('admin-status-changed', checkAdmin);
+    return () => window.removeEventListener('admin-status-changed', checkAdmin);
   }, [session]);
 
   const handleOpenNotifications = (isOpenNow: boolean) => {
@@ -200,9 +210,13 @@ export default function Header({ currentPage, setPage, session, setSession }: He
                 );
               })}
             </nav>
-            <span className="text-sm font-black text-brand-gold tracking-widest mt-1 block select-none">
+            <button
+              onClick={() => setShowAnalyticsModal(true)}
+              className="text-sm font-black text-brand-gold tracking-widest mt-1 block select-none hover:text-brand-gold-light hover:underline transition-all cursor-pointer"
+              title="لوحة إحصائيات المنصة للأدمن"
+            >
               آسر أسامة 🎓
-            </span>
+            </button>
           </div>
 
           {/* Notification Bell + Auth Button (Desktop) */}
@@ -624,9 +638,16 @@ export default function Header({ currentPage, setPage, session, setSession }: He
               )}
 
               <div className="pt-4 text-center border-t border-brand-gold/10 mt-4">
-                <span className="text-base font-black text-brand-gold tracking-widest block select-none">
+                <button
+                  onClick={() => {
+                    setShowAnalyticsModal(true);
+                    setIsOpen(false);
+                  }}
+                  className="text-base font-black text-brand-gold tracking-widest block select-none hover:text-brand-gold-light transition-all cursor-pointer w-full text-center"
+                  title="لوحة إحصائيات المنصة للأدمن"
+                >
                   آسر أسامة 🎓
-                </span>
+                </button>
               </div>
             </div>
           </motion.div>

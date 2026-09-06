@@ -1348,8 +1348,8 @@ export default function ProfilePage({ session, setPage, setActiveScheduleId, set
                       {/* Card Body - Note showing / hiding simulation for revision */}
                       <div className="flex-grow space-y-2">
                         {isNoteShown ? (
-                          <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-150 text-xs text-amber-900 leading-relaxed relative animate-fade-in">
-                            <span className="absolute -top-2 right-3 px-1.5 py-0.5 bg-amber-200 text-amber-800 text-[8px] font-bold rounded-md">تذكر الحل / الفكرة</span>
+                          <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/60 dark:border-brand-gold/30 text-xs text-amber-900 dark:text-brand-gold-light leading-relaxed relative animate-fade-in">
+                            <span className="absolute -top-2 right-3 px-1.5 py-0.5 bg-amber-200 dark:bg-brand-gold/20 text-amber-800 dark:text-brand-gold text-[8px] font-bold rounded-md">تذكر الحل / الفكرة</span>
                             <p className="font-bold pt-1">
                               " {err.note || 'لم تدون أي ملاحظات، تذكر فكرة الحل فقط!'} "
                             </p>
